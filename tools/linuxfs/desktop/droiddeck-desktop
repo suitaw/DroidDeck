@@ -51,6 +51,7 @@ NoDisplay=true
 X-KDE-Wayland-VirtualKeyboard=true
 ENTRY
 kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate 9
+kwriteconfig6 --file kwinrc --group Wayland --key VirtualKeyboardEnabled true
 /usr/local/bin/droiddeck-ime-switch --once
 (nohup /usr/local/bin/droiddeck-ime-switch >/tmp/droiddeck-ime-switch.log 2>&1 &)
 python3 /usr/local/bin/droiddeck-open --install 2>&1 | sed 's/^/[open] /'
