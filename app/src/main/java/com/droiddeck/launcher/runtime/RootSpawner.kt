@@ -185,7 +185,7 @@ object RootSpawner {
         val streams = listOf(stdio(fds.getOrNull(0), false), stdio(fds.getOrNull(1), true), stdio(fds.getOrNull(2), true))
         try {
             if (streams.any { it.redirect == null }) throw IOException("chroot-shell needs a terminal")
-            val process = ProcessBuilder(SU, "-c", ENTER + if (asRoot) " root" else " user")
+            val process = ProcessBuilder(SU, "-c", ENTER + if (asRoot) " root" else " user ${Process.myUid()}")
                 .directory(File("/"))
                 .redirectInput(streams[0].redirect)
                 .redirectOutput(streams[1].redirect)
