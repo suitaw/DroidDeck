@@ -176,7 +176,8 @@ kwriteconfig6 --file kwinrc --group Plugins --key blurEnabled true
 kwriteconfig6 --file kwinrc --group Plugins --key contrastEnabled true
 # Background services with nothing to do on a phone.
 mkdir -p "$HOME/.config/autostart"
-for entry in org.kde.kdeconnect.daemon org.kde.kunifiedpush-distributor kunifiedpush-distributor; do
+# im-launch would start a second fcitx5 next to the one KWin runs; baloo indexes every file.
+for entry in org.kde.kdeconnect.daemon org.kde.kunifiedpush-distributor im-launch baloo_file geoclue-demo-agent kup-daemon orca-autostart snap-userd-autostart; do
   [ -e "/etc/xdg/autostart/$entry.desktop" ] && printf '[Desktop Entry]\nHidden=true\n' > "$HOME/.config/autostart/$entry.desktop"
 done
 # KWin splits this variable on commas. Unset, that gives [""], which matches the nameless keyboard of its Wayland
