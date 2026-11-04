@@ -52,6 +52,25 @@ X-KDE-Wayland-VirtualKeyboard=true
 ENTRY
 kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate 9
 kwriteconfig6 --file kwinrc --group Wayland --key VirtualKeyboardEnabled true
+# Subpixel text suits LCD stripes, not this OLED panel: it leaves colored, soft edges. Use grayscale antialiasing.
+kwriteconfig6 --file kdeglobals --group General --key XftSubPixel none
+kwriteconfig6 --file kdeglobals --group General --key XftAntialias true
+kwriteconfig6 --file kdeglobals --group General --key XftHintStyle hintslight
+if [ ! -e "$HOME/.config/fontconfig/fonts.conf" ]; then
+  mkdir -p "$HOME/.config/fontconfig"
+  cat > "$HOME/.config/fontconfig/fonts.conf" <<'FONTS'
+<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <match target="font">
+    <edit name="rgba" mode="assign"><const>none</const></edit>
+    <edit name="lcdfilter" mode="assign"><const>lcdnone</const></edit>
+    <edit name="antialias" mode="assign"><bool>true</bool></edit>
+    <edit name="hintstyle" mode="assign"><const>hintslight</const></edit>
+  </match>
+</fontconfig>
+FONTS
+fi
 # KWin here is a client of the app's compositor and has no input devices to list, so these pages can only fail.
 kwriteconfig6 --file kdeglobals --group "KDE Control Module Restrictions" --key kcm_mouse false
 kwriteconfig6 --file kdeglobals --group "KDE Control Module Restrictions" --key kcm_touchpad false
@@ -120,6 +139,36 @@ if [ "$(cat /usr/share/droiddeck/kwin-compositor 2>/dev/null)" = opengl ]; then
   export PATH=/run/droiddeck/kwin:$PATH
 fi
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
+# Plasma's shell draws the wallpaper and panel, so its death leaves a black screen. Bring it back, and record why
+# it died. KCrash's own restart can fail, and the shell aborts inside glibc with nothing else in the logs.
+(
+  mkdir -p "$HOME/.cache/droiddeck"
+  crashlog="$HOME/.cache/droiddeck/plasmashell-crash.log"
+  starts=()
+  watched=
+  while sleep 3; do
+    manager=$(pidof -s ksmserver)
+    if shell=$(pidof -s plasmashell); then
+      if [ "$shell" != "$watched" ] && command -v gdb >/dev/null; then
+        watched=$shell
+        (gdb -q -nx -batch -p "$shell" -ex 'set pagination off' -ex 'handle all nostop noprint pass' \
+          -ex 'handle SIGABRT SIGSEGV SIGBUS SIGILL stop print nopass' -ex continue -ex 'bt 40' 2>&1 |
+          grep -E '^#[0-9]|signal' | { read -r first && { date; echo "$first"; cat; } >> "$crashlog"; }) &
+      fi
+      continue
+    fi
+    [ -n "$manager" ] && [ -n "$watched" ] || continue
+    sleep 4
+    pidof -s plasmashell >/dev/null && continue
+    now=$(date +%s)
+    recent=()
+    for t in "${starts[@]}"; do [ $((now - t)) -lt 120 ] && recent+=("$t"); done
+    starts=("${recent[@]}" "$now")
+    if [ "${#starts[@]}" -gt 4 ]; then echo "== droiddeck-desktop: plasmashell keeps dying; giving up"; break; fi
+    echo "== droiddeck-desktop: plasmashell is gone; starting it again"
+    xargs -0 -a "/proc/$manager/environ" env -i setsid plasmashell --no-respawn >/dev/null 2>&1 &
+  done
+) &
 # KWin splits this variable on commas. Unset, that gives [""], which matches the nameless keyboard of its Wayland
 # backend, so every key skipped the input method and fcitx5 never saw one.
 export KWIN_DEVICE_SKIPS_INPUT_METHOD=droiddeck-none
