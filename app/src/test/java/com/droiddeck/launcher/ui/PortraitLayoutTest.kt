@@ -42,8 +42,8 @@ class PortraitLayoutTest {
                 LauncherLayout(portrait.value, Color.Gray,
                     Modifier.size(if (portrait.value) 480.dp else 800.dp, if (portrait.value) 800.dp else 480.dp).testTag("launcher"),
                     navigation = {
-                        if (portrait.value) BottomBar(state, "steam", {}, {}, actions, Modifier)
-                        else SideRail(state, "steam", {}, {}, actions, Modifier.fillMaxHeight())
+                        if (portrait.value) BottomBar(state, "desktop", {}, {}, actions, Modifier)
+                        else SideRail(state, "desktop", {}, {}, actions, Modifier.fillMaxHeight())
                     },
                 ) {
                     var count by remember { mutableIntStateOf(0) }
@@ -56,7 +56,7 @@ class PortraitLayoutTest {
         compose.mainClock.advanceTimeBy(1_000)
         val root = compose.onNodeWithTag("launcher").getUnclippedBoundsInRoot()
         val pane = compose.onNodeWithTag("pane").getUnclippedBoundsInRoot()
-        val steam = compose.onNodeWithTag("rail-steam").getUnclippedBoundsInRoot()
+        val steam = compose.onNodeWithTag("rail-desktop").getUnclippedBoundsInRoot()
         assertEquals(root.left, pane.left)
         assertEquals(root.right, pane.right)
         assertTrue(steam.top >= pane.bottom)
@@ -66,7 +66,7 @@ class PortraitLayoutTest {
         compose.mainClock.advanceTimeBy(1_000)
         compose.onNodeWithText("Count 1").assertExists()
         val landscapePane = compose.onNodeWithTag("pane").getUnclippedBoundsInRoot()
-        val rail = compose.onNodeWithTag("rail-steam").getUnclippedBoundsInRoot()
+        val rail = compose.onNodeWithTag("rail-desktop").getUnclippedBoundsInRoot()
         assertTrue(landscapePane.left > rail.right)
         assertEquals(0.dp, landscapePane.top)
         compose.runOnIdle { portrait.value = true }
@@ -75,14 +75,14 @@ class PortraitLayoutTest {
     }
 
     @Test fun narrowBottomBarScrollsToEveryDestinationWithAppsAndResumeVisible() {
-        val selected = mutableStateOf("steam")
+        val selected = mutableStateOf("desktop")
         compose.setContent {
             DroidDeckTheme {
                 BottomBar(stateWithAppsAndSession, selected.value, { selected.value = it }, {}, actions, Modifier.size(320.dp, 64.dp))
             }
         }
         compose.mainClock.advanceTimeBy(1_000)
-        for (key in listOf("games", "stores", "desktop", "components", "android-apps", "setup", "updates", "steam")) {
+        for (key in listOf("components", "android-apps", "setup", "desktop")) {
             compose.onNodeWithTag("rail-$key").performScrollTo()
             compose.mainClock.advanceTimeBy(1_000)
             compose.onNodeWithTag("rail-$key").assertIsDisplayed().performClick()
