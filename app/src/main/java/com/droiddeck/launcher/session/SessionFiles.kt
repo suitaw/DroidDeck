@@ -236,7 +236,7 @@ object SessionFiles {
         ledger.save()
         for (old in arrayOf("aarch64-unix", "aarch64-windows", "i386-windows")) File(root, "$DIRECTAUDIO_DIR/lib/wine/$old").deleteRecursively()
         val preload = StringBuilder("/usr/local/lib/libblsession.so\n")
-        if (!File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()) {
+        if (false) {
             preload.append("/usr/local/lib/libfakeinput.so\n")
         }
         if (ProotFastPath.enabled(context)) {

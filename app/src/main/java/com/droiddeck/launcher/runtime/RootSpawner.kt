@@ -23,6 +23,8 @@ import java.util.concurrent.atomic.AtomicInteger
 
 object RootSpawner {
     private const val TAG = "RootSpawner"
+    private const val SU = "/system/bin/su"
+    private const val ENTER = "/data/local/chroot/enter"
     fun socket(context: Context): String = "${context.packageName}.root"
     private val seq = AtomicInteger()
     @Volatile private var server: LocalServerSocket? = null
@@ -62,6 +64,10 @@ object RootSpawner {
                 client.ancillaryFileDescriptors?.let { received.addAll(it) }
                 val body = ByteArray(input.readInt()).also { input.readFully(it) }
                 client.ancillaryFileDescriptors?.let { received.addAll(it) }
+                if (kind == 'C'.code) {
+                    chroot(context, JSONObject(String(body, Charsets.UTF_8)), received, out, id)
+                    return
+                }
                 if (kind != 'R'.code) return
                 run(context, JSONObject(String(body, Charsets.UTF_8)), received, client, input, out, id)
             } catch (e: Exception) {
@@ -167,6 +173,26 @@ object RootSpawner {
             pumps.filter { it.name.endsWith("-out") || it.name.endsWith("-err") }.forEach { it.join(2000) }
             OrphanReaper.release(pid)
             Log.i(TAG, "root $id exited $status")
+            runCatching { synchronized(out) { frame(out, 'X', status.toString().toByteArray()) } }
+        } finally {
+            streams.forEach { s -> runCatching { s.dup?.close() } }
+        }
+    }
+
+    private fun chroot(context: Context, request: JSONObject, fds: List<FileDescriptor>, out: DataOutputStream, id: Int) {
+        val asRoot = request.optBoolean("root", false)
+        if (asRoot && !ChrootConfirmActivity.ask(context)) throw IOException("root was not allowed")
+        val streams = listOf(stdio(fds.getOrNull(0), false), stdio(fds.getOrNull(1), true), stdio(fds.getOrNull(2), true))
+        try {
+            if (streams.any { it.redirect == null }) throw IOException("chroot-shell needs a terminal")
+            val process = ProcessBuilder(SU, "-c", ENTER + if (asRoot) " root" else " user")
+                .directory(File("/"))
+                .redirectInput(streams[0].redirect)
+                .redirectOutput(streams[1].redirect)
+                .redirectError(streams[2].redirect)
+                .start()
+            Log.i(TAG, "chroot $id root=$asRoot")
+            val status = process.waitFor()
             runCatching { synchronized(out) { frame(out, 'X', status.toString().toByteArray()) } }
         } finally {
             streams.forEach { s -> runCatching { s.dup?.close() } }

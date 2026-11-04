@@ -30,7 +30,7 @@
     <string name="steamvr_recovery_cancel">Keep open</string>
     <string name="steamvr_recovery_restarting">Resetting graphics and reopening SteamVR…</string>
     <string name="steamvr_recovery_failed">DroidDeck could not restart automatically. Close the app completely, then reopen it.</string>
-    <string name="app_name">DroidDeck</string>
+    <string name="app_name">DroidDeck Desktop</string>
     <string-array name="loading_hints">
         <item>First run downloads Steam. This may take a few minutes.</item>
         <item>By default, leaving the app pauses Steam; it picks up where it left off when you come back.</item>
@@ -3749,4 +3749,8 @@
     <string name="stores_gamejolt_filter_status">Status</string>
     <string name="stores_gamejolt_filter_partners">Partners</string>
     <string name="stores_gamejolt_followed">Followed games</string>
+    <string name="chroot_root_title">Allow root in the chroot?</string>
+    <string name="chroot_root_message">Something in the desktop asked for a root shell in the chroot. It can change this whole phone. Allow it only if you just asked for it yourself.</string>
+    <string name="chroot_root_allow">Allow once</string>
+    <string name="chroot_root_deny">Deny</string>
 </resources>

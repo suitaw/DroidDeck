@@ -117,6 +117,13 @@
             android:theme="@style/AppTheme" />
 
         <activity
+            android:name=".runtime.ChrootConfirmActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <activity
             android:name=".FrontEndActivity"
             android:exported="true"
             android:screenOrientation="user"

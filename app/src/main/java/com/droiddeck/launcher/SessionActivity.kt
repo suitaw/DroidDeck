@@ -630,6 +630,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!LinuxRuntime.isInstalled(this)) Log.i(TAG, "the Linux runtime is not installed; the loading screen installs it")
 
         val root = object : FrameLayout(this) {
+            override fun onResolvePointerIcon(event: MotionEvent, pointerIndex: Int): android.view.PointerIcon? =
+                if (platformPointerShown == true) super.onResolvePointerIcon(event, pointerIndex)
+                else android.view.PointerIcon.getSystemIcon(context, android.view.PointerIcon.TYPE_NULL)
+
             override fun dispatchCapturedPointerEvent(event: MotionEvent): Boolean =
                 onCapturedPointer(event) || super.dispatchCapturedPointerEvent(event)
             override fun dispatchPointerCaptureChanged(hasCapture: Boolean) {

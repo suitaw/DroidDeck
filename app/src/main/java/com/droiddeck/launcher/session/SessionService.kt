@@ -542,7 +542,7 @@ class SessionService : Service() {
         guest.add("BL_DEBUG_DIR=" + sessionDir.path)
 
         val fakeInputDir = File(sessionRoot, "dev/input").apply { mkdirs() }
-        val controllersOn = !File(Environment.getExternalStorageDirectory(), NO_PAD_SWITCH).exists()
+        val controllersOn = false
         SessionState.deckPad = false
         deckBinds = emptyList()
         inputSysfs = null

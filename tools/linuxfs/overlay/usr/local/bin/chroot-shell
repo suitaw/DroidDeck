@@ -1,0 +1,66 @@
+#!/usr/bin/python3
+import array
+import os
+import signal
+import socket
+import struct
+import sys
+import json
+
+SOCKET_FILE = "/etc/droiddeck/root-socket"
+
+
+def socket_name():
+    name = os.environ.get("DROIDDECK_ROOT_SOCKET", "")
+    if not name:
+        try:
+            with open(SOCKET_FILE, encoding="utf-8") as f:
+                name = f.read().strip()
+        except OSError:
+            pass
+    return "\0" + (name or "com.droiddeck.launcher.root")
+
+
+def read_exact(sock, n):
+    data = b""
+    while len(data) < n:
+        chunk = sock.recv(n - len(data))
+        if not chunk:
+            return None
+        data += chunk
+    return data
+
+
+def main(argv):
+    if not all(os.isatty(fd) for fd in (0, 1, 2)):
+        print("chroot-shell: run this in a terminal", file=sys.stderr)
+        return 2
+    as_root = argv[1:] == ["--root"]
+    if argv[1:] and not as_root:
+        print("usage: chroot-shell [--root]", file=sys.stderr)
+        return 2
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.connect(socket_name())
+    body = json.dumps({"root": as_root}).encode()
+    fds = array.array("i", [0, 1, 2])
+    sock.sendmsg([b"C" + struct.pack(">i", len(body))], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fds)])
+    sock.sendall(body)
+    for signum in (signal.SIGINT, signal.SIGQUIT, signal.SIGTSTP):
+        signal.signal(signum, signal.SIG_IGN)
+    status = 1
+    while True:
+        head = read_exact(sock, 5)
+        if head is None:
+            break
+        payload = read_exact(sock, struct.unpack(">i", head[1:])[0]) or b""
+        kind = chr(head[0])
+        if kind == "E":
+            print("chroot-shell: " + payload.decode(errors="replace"), file=sys.stderr)
+        elif kind == "X":
+            status = int(payload.decode() or "1")
+            break
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
