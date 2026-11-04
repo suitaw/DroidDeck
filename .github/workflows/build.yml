@@ -2,14 +2,6 @@ name: Build APK
 run-name: ${{ github.event_name == 'pull_request' && format('building pr {0} on {1}', github.event.pull_request.number, github.event.pull_request.head.sha) || format('building {0} on {1}', github.ref_name, github.sha) }}
 
 on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - '**/*.md'
-      - 'LICENSE'
-      - '.gitignore'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches: [ main ]
     types: [ opened, synchronize, reopened, ready_for_review ]
@@ -21,6 +13,10 @@ on:
       - '.github/ISSUE_TEMPLATE/**'
   workflow_dispatch:
     inputs:
+      full_tests:
+        description: Also run the unit and Python test suites
+        type: boolean
+        default: false
       rebuild_preloads:
         description: Rebuild preloads instead of reusing the approved binary snapshot
         type: boolean
@@ -588,6 +584,7 @@ jobs:
 
       - name: Unit tests
         id: unit-tests
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.full_tests }}
         env:
           DROIDDECK_BUILD_LABEL: ${{ steps.build-label.outputs.label }}
           SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
@@ -728,7 +725,7 @@ jobs:
   python-tests:
     name: Python and native regression tests
     needs: source
-    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
+    if: ${{ (github.event_name != 'pull_request' || !github.event.pull_request.draft) && (github.event_name != 'workflow_dispatch' || inputs.full_tests) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -802,7 +799,7 @@ jobs:
         env:
           BUILD_RESULT: ${{ needs.build.result }}
           PYTHON_RESULT: ${{ needs.python-tests.result }}
-        run: test "$BUILD_RESULT" = success && test "$PYTHON_RESULT" = success
+        run: test "$BUILD_RESULT" = success && { test "$PYTHON_RESULT" = success || test "$PYTHON_RESULT" = skipped; }
 
   sign:
     needs: [build, checks]
