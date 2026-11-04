@@ -140,6 +140,10 @@ if [ "$(cat /usr/share/droiddeck/kwin-compositor 2>/dev/null)" = opengl ]; then
   export PATH=/run/droiddeck/kwin:$PATH
 fi
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
+# Mesa's driver thread corrupts the shell's heap when a panel popup opens (the clipboard, reliably), as it does for KWin.
+mkdir -p "$HOME/.config/autostart"
+[ -e /etc/xdg/autostart/org.kde.plasmashell.desktop ] && sed 's|^Exec=.*|Exec=env GALLIUM_THREAD=0 /usr/bin/plasmashell|' \
+  /etc/xdg/autostart/org.kde.plasmashell.desktop > "$HOME/.config/autostart/org.kde.plasmashell.desktop"
 # Plasma's shell draws the wallpaper and panel, so its death leaves a black screen. Bring it back, and record why
 # it died. KCrash's own restart can fail, and the shell aborts inside glibc with nothing else in the logs.
 # gdb costs 250 MB, so it only watches a shell that has already been restarted once.
@@ -172,7 +176,7 @@ echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
     if [ "${#starts[@]}" -gt 4 ]; then echo "== droiddeck-desktop: plasmashell keeps dying; giving up"; break; fi
     echo "== droiddeck-desktop: plasmashell is gone; starting it again"
     restarted=1
-    xargs -0 -a "/proc/$manager/environ" sh -c 'exec env -i "$@" setsid plasmashell --no-respawn' sh >/dev/null 2>&1 &
+    xargs -0 -a "/proc/$manager/environ" sh -c 'exec env -i "$@" GALLIUM_THREAD=0 setsid plasmashell --no-respawn' sh >/dev/null 2>&1 &
   done
 ) &
 (nohup /usr/local/bin/droiddeck-safe-area >/tmp/droiddeck-safe-area.log 2>&1 &)
