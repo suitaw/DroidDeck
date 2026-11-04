@@ -2303,7 +2303,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val wanted = window.attributes.preferredDisplayModeId
         val requested = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
         val running = display?.refreshRate?.takeIf { it > 1f }
-        val hz = listOfNotNull(requested, running).minOrNull() ?: 60f
+        // The panel idles at 60 Hz whatever we ask, so the desktop trusts its request, not the current rate.
+        val hz = if (loadingMode() == SessionService.MODE_DESKTOP && requested != null) requested
+            else listOfNotNull(requested, running).minOrNull() ?: 60f
         val mirrorCap = mirrorRefreshLimit().takeIf { it > 0 }?.toFloat() ?: Float.POSITIVE_INFINITY
         val capped = minOf(hz, PerfMode.peakRefreshCap(this), mirrorCap)
         return if (capped > 1f) capped else 60f
@@ -3706,10 +3708,25 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private var publishedSafeArea: String? = null
 
+    /** The desktop runs at the panel's top refresh rate while it is in front; Android goes back to its own choice after. */
+    private fun requestDesktopRefresh() {
+        val display = (if (Build.VERSION.SDK_INT >= 30) display else @Suppress("DEPRECATION") windowManager.defaultDisplay) ?: return
+        val current = display.mode
+        val best = display.supportedModes
+            .filter { it.physicalWidth == current.physicalWidth && it.physicalHeight == current.physicalHeight }
+            .filter { it.refreshRate <= PerfMode.peakRefreshCap(this) + 0.5f }
+            .maxByOrNull { it.refreshRate } ?: return
+        if (window.attributes.preferredDisplayModeId == best.modeId) return
+        window.attributes = window.attributes.apply { preferredDisplayModeId = best.modeId }
+        Log.i(TAG, "desktop refresh: ${current.refreshRate.toInt()} -> ${best.refreshRate.toInt()} Hz (mode ${best.modeId})")
+        if (CompositorHost.isStarted) applyOutputPacing()
+    }
+
     /** Keeps the desktop's corners and edges clear of the screen's rounded corners and cutout. */
     private fun applyDesktopSafeArea() {
         if (!::surfaceView.isInitialized || loadingMode() != SessionService.MODE_DESKTOP) return
         if (isInPictureInPictureMode || bottomOutputActive) return
+        requestDesktopRefresh()
         val insets = window.decorView.rootWindowInsets ?: return
         var corner = 0
         if (Build.VERSION.SDK_INT >= 31) {
