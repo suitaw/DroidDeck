@@ -556,6 +556,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         override fun onInputDeviceRemoved(deviceId: Int) {
             physicalShortcuts.onDeviceRemoved(deviceId)
             publishHardKeyboard()
+            updatePointerCapture()
             Log.i(TAG, "input device $deviceId disconnected")
             backQamInput.onDeviceRemoved(deviceId)
             joyConVr?.refresh()
@@ -3755,7 +3756,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun updatePointerCapture() {
         if (!::surfaceView.isInitialized) return
         val view = window.decorView
-        val want = pointerLocked && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !pipUi && !bottomOutputActive && mouseAttached()
+        val want = (pointerLocked || desktopMouseCapture()) && resumed && hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !pipUi && !bottomOutputActive && mouseAttached()
         if (want == view.hasPointerCapture()) return
         if (want) view.requestPointerCapture() else view.releasePointerCapture()
     }
@@ -3775,8 +3776,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         surfaceView.pointerIcon = icon
     }
 
+    /**
+     * On the desktop the app owns the mouse: Android draws its own pointer over the status bar and
+     * gesture areas, which come up whenever a free pointer reaches a screen edge.
+     */
+    private fun desktopMouseCapture(): Boolean =
+        loadingMode() == SessionService.MODE_DESKTOP && !bottomOutputActive && mouseAttached()
+
     private fun onCapturedPointer(event: MotionEvent): Boolean {
-        if (!pointerLocked || !event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false
+        val desktop = !pointerLocked && desktopMouseCapture()
+        if ((!pointerLocked && !desktop) || !event.isFromSource(InputDevice.SOURCE_MOUSE_RELATIVE)) return false
         notePress(event)
         when (event.actionMasked) {
             MotionEvent.ACTION_MOVE -> {
@@ -3787,6 +3796,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     dy += event.getHistoricalY(i)
                 }
                 sendSceneDelta(dx, dy)
+                if (desktop) {
+                    cursorVisible = true
+                    uiHandler.post { alignCursorToGuest() }
+                }
             }
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
                 val button = when (event.actionButton) {
