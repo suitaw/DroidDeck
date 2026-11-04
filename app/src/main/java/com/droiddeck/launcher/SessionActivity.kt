@@ -3738,9 +3738,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // A square corner stays on screen when it is inset by r * (1 - cos 45 degrees).
         val edge = kotlin.math.ceil(corner * 0.293f).toInt()
         val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
-        // The wallpaper fills the screen; droiddeck-safe-area keeps windows and the panel inside these insets.
-        val area = "${maxOf(edge, cutout?.safeInsetLeft ?: 0)} ${maxOf(edge, cutout?.safeInsetTop ?: 0)} " +
-            "${maxOf(edge, cutout?.safeInsetRight ?: 0)} ${maxOf(edge, cutout?.safeInsetBottom ?: 0)}"
+        // A small black margin keeps window controls out of the rounded corners; the user picks how much.
+        val margin = SessionPrefs.desktopMargin(this)
+        val params = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        params.setMargins(margin, margin, margin, margin)
+        val old = surfaceView.layoutParams as? FrameLayout.LayoutParams
+        if (old == null || old.leftMargin != margin || old.topMargin != margin ||
+            old.rightMargin != margin || old.bottomMargin != margin) surfaceView.layoutParams = params
+        // droiddeck-safe-area keeps the panel inside whatever the margin does not already clear.
+        val area = "${(maxOf(edge, cutout?.safeInsetLeft ?: 0) - margin).coerceAtLeast(0)} ${(maxOf(edge, cutout?.safeInsetTop ?: 0) - margin).coerceAtLeast(0)} " +
+            "${(maxOf(edge, cutout?.safeInsetRight ?: 0) - margin).coerceAtLeast(0)} ${(maxOf(edge, cutout?.safeInsetBottom ?: 0) - margin).coerceAtLeast(0)}"
         if (area != publishedSafeArea) {
             publishedSafeArea = area
             Log.i(TAG, "desktop safe area $area corner=$corner")
@@ -4229,6 +4236,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         desktopMouseSpeed = SessionPrefs.mouseSpeed(this)
+        if (::surfaceView.isInitialized) surfaceView.post { applyDesktopSafeArea() }
         desktopMouseLeftHanded = SessionPrefs.mouseLeftHanded(this) && loadingMode() == SessionService.MODE_DESKTOP
         super.onResume()
         if (refreshActivityDisplayId() && started) {

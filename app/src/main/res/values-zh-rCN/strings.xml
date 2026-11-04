@@ -606,6 +606,13 @@
     <string name="perf_cursor_composite_hint">由 Gamescope 自行绘制指针，而不是交给 Android。使用手柄控制光标时请开启。在手机上关闭会更流畅。下次会话时生效。</string>
     <string name="perf_chroot">用 chroot 运行桌面（实验）</string>
     <string name="perf_chroot_hint">需要 root（在 KernelSU 里给本应用授权）。由内核直接运行，不再经过 proot 拦截，程序启动更快。会话起不来时请关闭此项。下次会话时生效。</string>
+    <string name="perf_screen">屏幕</string>
+    <string name="perf_margin">屏幕留边</string>
+    <string name="perf_margin_hint">桌面四周留一圈黑边，窗口按钮不会被屏幕圆角挡住。</string>
+    <string name="perf_margin_none">无</string>
+    <string name="perf_margin_small">小</string>
+    <string name="perf_margin_medium">中</string>
+    <string name="perf_margin_large">大</string>
     <string name="perf_mouse">鼠标</string>
     <string name="perf_mouse_speed">指针速度</string>
     <string name="perf_mouse_speed_hint">移动鼠标或触摸板时，桌面指针移动的距离。</string>

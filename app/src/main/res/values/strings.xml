@@ -648,6 +648,13 @@
     <string name="perf_cursor_composite_hint">Gamescope paints the pointer itself instead of handing it to Android. Turn on for a controller-driven cursor. Off is faster on a phone. Applies next session.</string>
     <string name="perf_chroot">Run the desktop in a chroot (experimental)</string>
     <string name="perf_chroot_hint">Needs root (allow this app in KernelSU). Runs the guest directly under the kernel instead of through proot, so programs start faster. Turn it off if the session does not start. Takes effect next session.</string>
+    <string name="perf_screen">Screen</string>
+    <string name="perf_margin">Screen margin</string>
+    <string name="perf_margin_hint">A black edge around the desktop keeps window buttons out of the rounded corners.</string>
+    <string name="perf_margin_none">None</string>
+    <string name="perf_margin_small">Small</string>
+    <string name="perf_margin_medium">Medium</string>
+    <string name="perf_margin_large">Large</string>
     <string name="perf_mouse">Mouse</string>
     <string name="perf_mouse_speed">Pointer speed</string>
     <string name="perf_mouse_speed_hint">How far the desktop pointer moves for a mouse or touchpad movement.</string>

@@ -714,6 +714,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootFastPath", on).apply()
     }
 
+    fun desktopMargin(context: Context): Int = prefs(context).getInt("desktopMargin", 24)
+
+    fun setDesktopMargin(context: Context, pixels: Int) {
+        prefs(context).edit().putInt("desktopMargin", pixels).apply()
+    }
+
     fun mouseSpeed(context: Context): Float = prefs(context).getFloat("mouseSpeed", 1f)
 
     fun setMouseSpeed(context: Context, speed: Float) {

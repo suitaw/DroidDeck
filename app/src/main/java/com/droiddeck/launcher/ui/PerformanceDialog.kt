@@ -55,6 +55,7 @@ fun PerformancePage(
     prootFastPath: Boolean,
     cursorComposite: Boolean,
     chrootMode: Boolean,
+    desktopMargin: Int,
     mouseSpeed: Float,
     mouseLeftHanded: Boolean,
     guestHostname: String,
@@ -77,6 +78,7 @@ fun PerformancePage(
     onProotFastPath: (Boolean) -> Unit,
     onCursorComposite: (Boolean) -> Unit,
     onChrootMode: (Boolean) -> Unit,
+    onDesktopMargin: (Int) -> Unit,
     onMouseSpeed: (Float) -> Unit,
     onMouseLeftHanded: (Boolean) -> Unit,
     onGuestHostname: (String) -> Unit,
@@ -206,6 +208,17 @@ fun PerformancePage(
                 host, "chroot", stringResource(R.string.perf_chroot),
                 stringResource(R.string.perf_chroot_hint),
                 chrootMode, onChange = onChrootMode,
+            )
+        }
+        SettingsGroup(stringResource(R.string.perf_screen)) {
+            ChoiceRow(
+                host, "desktopmargin", stringResource(R.string.perf_margin),
+                stringResource(R.string.perf_margin_hint),
+                listOf(
+                    0 to stringResource(R.string.perf_margin_none), 12 to stringResource(R.string.perf_margin_small),
+                    24 to stringResource(R.string.perf_margin_medium), 41 to stringResource(R.string.perf_margin_large),
+                ),
+                desktopMargin, onPick = onDesktopMargin,
             )
         }
         SettingsGroup(stringResource(R.string.perf_mouse)) {
