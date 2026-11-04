@@ -180,6 +180,8 @@ class FrontEndActivity : ComponentActivity() {
     private var prootFastPath by mutableStateOf(true)
     private var cursorComposite by mutableStateOf(false)
     private var chrootMode by mutableStateOf(false)
+    private var mouseSpeed by mutableStateOf(1f)
+    private var mouseLeftHanded by mutableStateOf(false)
     private var guestHostname by mutableStateOf(SessionPrefs.DEFAULT_GUEST_HOSTNAME)
     private var phantomWarning by mutableStateOf<String?>(null)
     private var phantomProcessStatus by mutableStateOf(PhantomProcessStatus.NOT_APPLICABLE)
@@ -2329,7 +2331,7 @@ class FrontEndActivity : ComponentActivity() {
             deviceRamMb = (android.app.ActivityManager.MemoryInfo()
                 .also((getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)::getMemoryInfo).totalMem / (1024 * 1024)).toInt(),
             ramCapAvailable = com.droiddeck.launcher.core.ZramSupport.supported(),
-            prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, cursorComposite = cursorComposite, chrootMode = chrootMode,
+            prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, cursorComposite = cursorComposite, chrootMode = chrootMode, mouseSpeed = mouseSpeed, mouseLeftHanded = mouseLeftHanded,
             guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
             onTuSysmem = { on -> SessionPrefs.setTuSysmem(this, on); tuSysmem = on },
@@ -2349,6 +2351,8 @@ class FrontEndActivity : ComponentActivity() {
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
             onCursorComposite = { on -> SessionPrefs.setCursorComposite(this, on); cursorComposite = on },
             onChrootMode = { on -> SessionPrefs.setChrootMode(this, on); chrootMode = on },
+            onMouseSpeed = { speed -> SessionPrefs.setMouseSpeed(this, speed); mouseSpeed = speed },
+            onMouseLeftHanded = { on -> SessionPrefs.setMouseLeftHanded(this, on); mouseLeftHanded = on },
             onGuestHostname = { name -> SessionPrefs.setGuestHostname(this, name) },
             onClientCore = { core, on ->
                 clientCores = if (on) clientCores + core else clientCores - core
@@ -2570,6 +2574,8 @@ class FrontEndActivity : ComponentActivity() {
         prootFastPath = SessionPrefs.prootFastPath(this)
         cursorComposite = SessionPrefs.cursorComposite(this)
         chrootMode = SessionPrefs.chrootMode(this)
+        mouseSpeed = SessionPrefs.mouseSpeed(this)
+        mouseLeftHanded = SessionPrefs.mouseLeftHanded(this)
         guestHostname = SessionPrefs.guestHostname(this)
         refreshPhantomStatus()
     }

@@ -55,6 +55,8 @@ fun PerformancePage(
     prootFastPath: Boolean,
     cursorComposite: Boolean,
     chrootMode: Boolean,
+    mouseSpeed: Float,
+    mouseLeftHanded: Boolean,
     guestHostname: String,
     phantomWarning: String?,
     onClientOverride: (Boolean) -> Unit,
@@ -75,6 +77,8 @@ fun PerformancePage(
     onProotFastPath: (Boolean) -> Unit,
     onCursorComposite: (Boolean) -> Unit,
     onChrootMode: (Boolean) -> Unit,
+    onMouseSpeed: (Float) -> Unit,
+    onMouseLeftHanded: (Boolean) -> Unit,
     onGuestHostname: (String) -> Unit,
     onClientCore: (Int, Boolean) -> Unit,
     onGameCore: (Int, Boolean) -> Unit,
@@ -202,6 +206,19 @@ fun PerformancePage(
                 host, "chroot", stringResource(R.string.perf_chroot),
                 stringResource(R.string.perf_chroot_hint),
                 chrootMode, onChange = onChrootMode,
+            )
+        }
+        SettingsGroup(stringResource(R.string.perf_mouse)) {
+            ChoiceRow(
+                host, "mousespeed", stringResource(R.string.perf_mouse_speed),
+                stringResource(R.string.perf_mouse_speed_hint),
+                listOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f, 3f).map { it to "$it×" },
+                mouseSpeed, onPick = onMouseSpeed,
+            )
+            ToggleRow(
+                host, "mouseleft", stringResource(R.string.perf_mouse_left),
+                stringResource(R.string.perf_mouse_left_hint),
+                mouseLeftHanded, onChange = onMouseLeftHanded,
             )
         }
         SettingsGroup(stringResource(R.string.perf_identity)) {

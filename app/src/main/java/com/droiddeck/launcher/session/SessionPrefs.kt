@@ -714,6 +714,18 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootFastPath", on).apply()
     }
 
+    fun mouseSpeed(context: Context): Float = prefs(context).getFloat("mouseSpeed", 1f)
+
+    fun setMouseSpeed(context: Context, speed: Float) {
+        prefs(context).edit().putFloat("mouseSpeed", speed).apply()
+    }
+
+    fun mouseLeftHanded(context: Context): Boolean = prefs(context).getBoolean("mouseLeftHanded", false)
+
+    fun setMouseLeftHanded(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("mouseLeftHanded", on).apply()
+    }
+
     fun chrootMode(context: Context): Boolean = prefs(context).getBoolean("chrootMode", false)
 
     fun setChrootMode(context: Context, on: Boolean) {

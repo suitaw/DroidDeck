@@ -648,6 +648,11 @@
     <string name="perf_cursor_composite_hint">Gamescope paints the pointer itself instead of handing it to Android. Turn on for a controller-driven cursor. Off is faster on a phone. Applies next session.</string>
     <string name="perf_chroot">Run the desktop in a chroot (experimental)</string>
     <string name="perf_chroot_hint">Needs root (allow this app in KernelSU). Runs the guest directly under the kernel instead of through proot, so programs start faster. Turn it off if the session does not start. Takes effect next session.</string>
+    <string name="perf_mouse">Mouse</string>
+    <string name="perf_mouse_speed">Pointer speed</string>
+    <string name="perf_mouse_speed_hint">How far the desktop pointer moves for a mouse or touchpad movement.</string>
+    <string name="perf_mouse_left">Left-handed</string>
+    <string name="perf_mouse_left_hint">Swap the left and right buttons on the desktop.</string>
     <string name="perf_identity">Session identity</string>
     <string name="perf_hostname">Host name</string>
     <string name="perf_hostname_hint">The name Steam sees for this device. Blank restores %1$s.</string>

@@ -97,7 +97,7 @@ object ChrootSession {
         val dom = File(dir, "dom.sh")
         // The rootfs needs real hard links here (libICE locks, for one) and the app's domain may not make them.
         write(File(dir, "sepolicy.rule"), "allow untrusted_app_27 app_data_file file link\n")
-        write(File(dir, "linkprobe.sh"), "f=/tmp/.dd-link.\$\$; : > \$f; ln \$f \$f.2; r=\$?; rm -f \$f \$f.2; exit \$r\n")
+        write(File(dir, "linkprobe.sh"), "export PATH=/usr/bin:/bin; f=/tmp/.dd-link.\$\$; : > \$f; ln \$f \$f.2; r=\$?; rm -f \$f \$f.2; exit \$r\n")
         write(dom,
             "#!/bin/sh\n" +
                 "cd \"\${DD_CWD:-/}\" 2>/dev/null || cd /\n" +

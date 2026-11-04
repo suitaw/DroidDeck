@@ -2188,6 +2188,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Log.i(TAG, "surface resized to ${width}x$height - rebinding the compositor")
             CompositorHost.resize(holder.surface) { applyFrameGen() }
             resizeOutputForWindow(width, height)
+        } else {
+            resizeOutputForWindow(width, height)
         }
     }
 
@@ -2200,6 +2202,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 (width and 1.inv()) to (height and 1.inv())
             else -> null
         }
+        // The desktop's surface is inset for the rounded corners; render exactly that size so no frame gets rescaled.
+        if (loadingMode() == SessionService.MODE_DESKTOP && glassesScreen == null) return (width and 1.inv()) to (height and 1.inv())
         return if (SessionState.followScreen)
             com.droiddeck.launcher.session.SessionDisplay.followSize(width, height, controlsBelowWanted(), SessionState.followScale)
         else if (glassesScreen == null) outputSize() else null
@@ -3677,9 +3681,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
                 if (evdevMouseActive) sendMouseDelta(x, y) else movePointer(x, y)
                 val button = when (event.actionButton) {
-                    MotionEvent.BUTTON_SECONDARY -> PointerGestures.BTN_RIGHT
+                    MotionEvent.BUTTON_SECONDARY -> if (desktopMouseLeftHanded) PointerGestures.BTN_LEFT else PointerGestures.BTN_RIGHT
                     MotionEvent.BUTTON_TERTIARY -> PointerGestures.BTN_MIDDLE
-                    else -> PointerGestures.BTN_LEFT
+                    else -> if (desktopMouseLeftHanded) PointerGestures.BTN_RIGHT else PointerGestures.BTN_LEFT
                 }
                 sendSceneButton(button, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS)
             }
@@ -3780,6 +3784,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      * On the desktop the app owns the mouse: Android draws its own pointer over the status bar and
      * gesture areas, which come up whenever a free pointer reaches a screen edge.
      */
+    private var desktopMouseSpeed = 1f
+    private var desktopMouseLeftHanded = false
+
     private fun desktopMouseCapture(): Boolean =
         loadingMode() == SessionService.MODE_DESKTOP && !bottomOutputActive && mouseAttached()
 
@@ -3795,7 +3802,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     dx += event.getHistoricalX(i)
                     dy += event.getHistoricalY(i)
                 }
-                sendSceneDelta(dx, dy)
+                val speed = if (desktop) desktopMouseSpeed else 1f
+                sendSceneDelta(dx * speed, dy * speed)
                 if (desktop) {
                     cursorVisible = true
                     uiHandler.post { alignCursorToGuest() }
@@ -3803,9 +3811,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
                 val button = when (event.actionButton) {
-                    MotionEvent.BUTTON_SECONDARY -> PointerGestures.BTN_RIGHT
+                    MotionEvent.BUTTON_SECONDARY -> if (desktopMouseLeftHanded) PointerGestures.BTN_LEFT else PointerGestures.BTN_RIGHT
                     MotionEvent.BUTTON_TERTIARY -> PointerGestures.BTN_MIDDLE
-                    else -> PointerGestures.BTN_LEFT
+                    else -> if (desktopMouseLeftHanded) PointerGestures.BTN_RIGHT else PointerGestures.BTN_LEFT
                 }
                 sendSceneButton(button, event.actionMasked == MotionEvent.ACTION_BUTTON_PRESS)
             }
@@ -4191,6 +4199,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onResume() {
+        desktopMouseSpeed = SessionPrefs.mouseSpeed(this)
+        desktopMouseLeftHanded = SessionPrefs.mouseLeftHanded(this) && loadingMode() == SessionService.MODE_DESKTOP
         super.onResume()
         if (refreshActivityDisplayId() && started) {
             SessionService.setActivityDisplay(this, sessionActivityDisplayId)
