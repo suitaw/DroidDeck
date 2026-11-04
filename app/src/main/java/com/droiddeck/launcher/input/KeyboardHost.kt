@@ -124,9 +124,8 @@ class KeyboardHost(
         }
 
         override fun finishComposingText(): Boolean {
-            val pending = composing
+            // Unconfirmed letters stay with the IME; it sends what the user picks through commitText.
             composing = ""
-            if (pending.isNotEmpty() && commitText != null) commitText(pending, 1)
             return true
         }
 
