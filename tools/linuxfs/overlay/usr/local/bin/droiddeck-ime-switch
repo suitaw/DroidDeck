@@ -9,9 +9,22 @@ wanted() {
   if [ "$(cat "$FLAG" 2>/dev/null)" = 1 ] && [ -f "$FCITX" ]; then echo "$FCITX"; else echo "$ANDROID_IME"; fi
 }
 
+# This script starts before dbus-run-session, so it has no session bus of its own and a --notify would reach nobody.
+session_bus() {
+  local pid
+  pid=$(pidof -s kwin_wayland) || return 1
+  tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^DBUS_SESSION_BUS_ADDRESS=//p'
+}
+
 apply() {
   [ "$1" = "$(kreadconfig6 --file kwinrc --group Wayland --key InputMethod 2>/dev/null)" ] && return
-  [ "$1" = "$ANDROID_IME" ] && pkill -x fcitx5
+  if [ -n "${2:-}" ]; then
+    # No KWin yet: leave the setting unchanged so the next pass tries again.
+    export DBUS_SESSION_BUS_ADDRESS="$(session_bus)"
+    [ -n "$DBUS_SESSION_BUS_ADDRESS" ] || return
+  fi
+  # A running fcitx5 that KWin did not start would stop KWin's own from starting.
+  pkill -x fcitx5
   kwriteconfig6 --file kwinrc --group Wayland --key InputMethod ${2:+--notify} "$1"
   echo "input method: $1"
 }

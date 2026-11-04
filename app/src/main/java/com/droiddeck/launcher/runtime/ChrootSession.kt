@@ -73,7 +73,19 @@ object ChrootSession {
     } catch (e: Exception) { "" }
 
     /** The su command that runs [prootCommand] in a chroot, or null if it cannot be turned into one. */
-    fun command(context: Context, prootCommand: List<String>): List<String>? {
+    fun command(context: Context, prootCommand: List<String>): List<String>? = try {
+        build(context, prootCommand)
+    } catch (e: Exception) {
+        Log.e(TAG, "could not prepare the chroot; staying on proot", e)
+        null
+    }
+
+    private fun write(file: File, text: String) {
+        file.delete() // an earlier root-owned copy can be removed, not overwritten
+        file.writeText(text)
+    }
+
+    private fun build(context: Context, prootCommand: List<String>): List<String>? {
         val parsed = parse(prootCommand)
         if (parsed == null) {
             Log.w(TAG, "cannot read the proot command; staying on proot")
@@ -83,7 +95,10 @@ object ChrootSession {
         val files = context.filesDir.path
         val dir = File(context.filesDir, "chroot").apply { mkdirs() }
         val dom = File(dir, "dom.sh")
-        dom.writeText(
+        // The rootfs needs real hard links here (libICE locks, for one) and the app's domain may not make them.
+        write(File(dir, "sepolicy.rule"), "allow untrusted_app_27 app_data_file file link\n")
+        write(File(dir, "linkprobe.sh"), "f=/tmp/.dd-link.\$\$; : > \$f; ln \$f \$f.2; r=\$?; rm -f \$f \$f.2; exit \$r\n")
+        write(dom,
             "#!/bin/sh\n" +
                 "cd \"\${DD_CWD:-/}\" 2>/dev/null || cd /\n" +
                 "[ -z \"\$DD_CTX\" ] || printf '%s' \"\$DD_CTX\" > /proc/self/attr/current 2>/dev/null || echo 'chroot: could not switch the SELinux domain' >&2\n" +
@@ -137,9 +152,14 @@ object ChrootSession {
         val groups = selfGroups()
         val priv = "--reuid=$uid --regid=$uid " + if (groups.isNotEmpty()) "--groups=$groups" else "--clear-groups"
         val guest = parsed.guest.joinToString(" ") { q(it) }
+        val asApp = "chroot \"\$R\" /usr/bin/setpriv $priv /bin/sh ${q(dom.path)}"
+        line("i=0; while [ \$i -lt 5 ]; do")
+        line("  $asApp /bin/sh ${q(File(dir, "linkprobe.sh").path)} 2>/dev/null && break")
+        line("  /data/adb/ksud sepolicy apply \"\$F/chroot/sepolicy.rule\" >/dev/null 2>&1; sleep 1; i=\$((i+1))")
+        line("done; [ \$i -lt 5 ] || echo 'chroot: the hard link rule is not active'")
         line("exec chroot \"\$R\" /usr/bin/setpriv $priv /bin/sh ${q(File(dir, "dom.sh").path)} $guest")
         val script = File(dir, "session.sh")
-        script.writeText(sb.toString())
+        write(script, sb.toString())
         script.setReadable(true, false)
         active = true
         Log.i(TAG, "chroot session: ${parsed.binds.size} binds, groups=$groups, context=${selfContext()}")

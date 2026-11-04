@@ -52,6 +52,11 @@ X-KDE-Wayland-VirtualKeyboard=true
 ENTRY
 kwriteconfig6 --file kwinrc --group Effect-overview --key BorderActivate 9
 kwriteconfig6 --file kwinrc --group Wayland --key VirtualKeyboardEnabled true
+output_scale=$(python3 -c "import json,os;print(next(o['scale'] for s in json.load(open(os.path.expanduser('~/.config/kwinoutputconfig.json'))) if s.get('name')=='outputs' for o in s['data'] if 'scale' in o))" 2>/dev/null)
+if [ -n "$output_scale" ]; then
+  kwriteconfig6 --file kwinrc --group Xwayland --key Scale "$output_scale"
+  kwriteconfig6 --file kdeglobals --group KScreen --key XwaylandClientsScale true
+fi
 /usr/local/bin/droiddeck-ime-switch --once
 (nohup /usr/local/bin/droiddeck-ime-switch >/tmp/droiddeck-ime-switch.log 2>&1 &)
 python3 /usr/local/bin/droiddeck-open --install 2>&1 | sed 's/^/[open] /'

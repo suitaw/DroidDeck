@@ -8,4 +8,3 @@ pref("browser.shell.checkDefaultBrowser", false);
 pref("datareporting.policy.dataSubmissionEnabled", false);
 pref("browser.aboutwelcome.enabled", false);
 pref("browser.startup.homepage", "about:blank");
-pref("layout.css.devPixelsPerPx", "1.25");
