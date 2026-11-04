@@ -142,15 +142,19 @@ fi
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
 # Plasma's shell draws the wallpaper and panel, so its death leaves a black screen. Bring it back, and record why
 # it died. KCrash's own restart can fail, and the shell aborts inside glibc with nothing else in the logs.
+# gdb costs 250 MB, so it only watches a shell that has already been restarted once.
 (
   mkdir -p "$HOME/.cache/droiddeck"
   crashlog="$HOME/.cache/droiddeck/plasmashell-crash.log"
   starts=()
   watched=
+  seen=
+  restarted=
   while sleep 3; do
     manager=$(pidof -s ksmserver)
     if shell=$(pidof -s plasmashell); then
-      if [ "$shell" != "$watched" ] && command -v gdb >/dev/null; then
+      seen=1
+      if [ -n "$restarted" ] && [ "$shell" != "$watched" ] && command -v gdb >/dev/null; then
         watched=$shell
         (gdb -q -nx -batch -p "$shell" -ex 'set pagination off' -ex 'handle all nostop noprint pass' \
           -ex 'handle SIGABRT SIGSEGV SIGBUS SIGILL stop print nopass' -ex continue -ex 'bt 40' 2>&1 |
@@ -158,7 +162,7 @@ echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
       fi
       continue
     fi
-    [ -n "$manager" ] && [ -n "$watched" ] || continue
+    [ -n "$manager" ] && [ -n "$seen" ] || continue
     sleep 4
     pidof -s plasmashell >/dev/null && continue
     now=$(date +%s)
@@ -167,10 +171,12 @@ echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
     starts=("${recent[@]}" "$now")
     if [ "${#starts[@]}" -gt 4 ]; then echo "== droiddeck-desktop: plasmashell keeps dying; giving up"; break; fi
     echo "== droiddeck-desktop: plasmashell is gone; starting it again"
+    restarted=1
     xargs -0 -a "/proc/$manager/environ" sh -c 'exec env -i "$@" setsid plasmashell --no-respawn' sh >/dev/null 2>&1 &
   done
 ) &
 (nohup /usr/local/bin/droiddeck-safe-area >/tmp/droiddeck-safe-area.log 2>&1 &)
+(nohup /usr/local/bin/droiddeck-desktop-links >/tmp/droiddeck-desktop-links.log 2>&1 &)
 kwriteconfig6 --file kwinrc --group Plugins --key shakecursorEnabled false
 kwriteconfig6 --file kwinrc --group Plugins --key blurEnabled true
 kwriteconfig6 --file kwinrc --group Plugins --key contrastEnabled true

@@ -8,3 +8,5 @@ pref("browser.shell.checkDefaultBrowser", false);
 pref("datareporting.policy.dataSubmissionEnabled", false);
 pref("browser.aboutwelcome.enabled", false);
 pref("browser.startup.homepage", "about:blank");
+// Hardware WebRender through zink flashes white strips over buttons here; software rendering does not.
+pref("gfx.webrender.software", true);

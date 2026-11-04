@@ -1,0 +1,146 @@
+#!/usr/bin/python3
+"""Gives newly installed apps a desktop shortcut and takes it away again when the app is uninstalled.
+
+Apps already present on the first run get nothing, and a shortcut the user deleted does not come back.
+"""
+import json
+import os
+import shutil
+import subprocess
+import time
+
+HOME = os.path.expanduser("~")
+DIRS = (
+    "/usr/share/applications",
+    "/usr/local/share/applications",
+    "/var/lib/flatpak/exports/share/applications",
+    f"{HOME}/.local/share/flatpak/exports/share/applications",
+    f"{HOME}/.local/share/applications",
+)
+STATE = f"{HOME}/.local/state/droiddeck/desktop-links.json"
+POLL_SECONDS = 5
+# A package upgrade can drop a .desktop file for a moment; only a longer absence counts as an uninstall.
+GONE_SECONDS = 60
+
+
+def desktop_dir():
+    try:
+        path = subprocess.run(["xdg-user-dir", "DESKTOP"], capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        path = ""
+    return path if path and path != HOME else f"{HOME}/Desktop"
+
+
+def entry(path):
+    fields, inside = {}, False
+    try:
+        with open(path, encoding="utf-8", errors="replace") as file:
+            for line in file:
+                line = line.strip()
+                if line.startswith("["):
+                    inside = line == "[Desktop Entry]"
+                elif inside and "=" in line:
+                    key, value = line.split("=", 1)
+                    fields.setdefault(key.strip(), value.strip())
+    except OSError:
+        return None
+    return fields
+
+
+def launchable(fields):
+    if not fields or fields.get("Type", "Application") != "Application" or not fields.get("Exec"):
+        return False
+    if any(fields.get(key, "").lower() == "true" for key in ("NoDisplay", "Hidden", "Terminal")):
+        return False
+    only, never = fields.get("OnlyShowIn"), fields.get("NotShowIn", "")
+    return ("KDE" in only.split(";") if only else True) and "KDE" not in never.split(";")
+
+
+def scan(dirs=DIRS):
+    apps = {}
+    for directory in dirs:
+        try:
+            names = os.listdir(directory)
+        except OSError:
+            continue
+        for name in names:
+            path = os.path.join(directory, name)
+            if name.endswith(".desktop") and name not in apps and launchable(entry(path)):
+                apps[name] = path
+    return apps
+
+
+def load():
+    try:
+        with open(STATE, encoding="utf-8") as file:
+            state = json.load(file)
+        return set(state["known"]), set(state["ours"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
+def save(known, ours):
+    os.makedirs(os.path.dirname(STATE), exist_ok=True)
+    temp = STATE + ".tmp"
+    with open(temp, "w", encoding="utf-8") as file:
+        json.dump({"known": sorted(known), "ours": sorted(ours)}, file)
+    os.replace(temp, STATE)
+
+
+def link(source, name, desktop):
+    target = os.path.join(desktop, name)
+    if os.path.lexists(target):
+        return False
+    os.makedirs(desktop, exist_ok=True)
+    temp = target + ".tmp"
+    shutil.copyfile(source, temp)
+    os.chmod(temp, 0o755)
+    os.replace(temp, target)
+    return True
+
+
+def tick(known, ours, missing, apps, desktop, now):
+    """One pass over the installed apps; returns whether the saved state changed."""
+    changed = False
+    for name, path in apps.items():
+        missing.pop(name, None)
+        if name not in known:
+            known.add(name)
+            changed = True
+            try:
+                if link(path, name, desktop):
+                    ours.add(name)
+            except OSError as error:
+                print(f"droiddeck-desktop-links: {name}: {error}", flush=True)
+    for name in known - apps.keys():
+        if now - missing.setdefault(name, now) < GONE_SECONDS:
+            continue
+        del missing[name]
+        known.discard(name)
+        changed = True
+        if name in ours:
+            ours.discard(name)
+            try:
+                os.remove(os.path.join(desktop, name))
+            except OSError:
+                pass
+    return changed
+
+
+def main():
+    apps = scan()
+    state = load()
+    if state is None:
+        known, ours = set(apps), set()
+        save(known, ours)
+    else:
+        known, ours = state
+    missing, desktop = {}, desktop_dir()
+    while True:
+        if tick(known, ours, missing, scan(), desktop, time.monotonic()):
+            save(known, ours)
+        time.sleep(POLL_SECONDS)
+
+
+if __name__ == "__main__":
+    main()
