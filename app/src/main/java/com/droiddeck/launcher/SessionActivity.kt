@@ -907,7 +907,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
                 CursorOverlay({ cursorPos + androidx.compose.ui.geometry.Offset(surfaceView.left.toFloat(), surfaceView.top.toFloat()) }, cursorVisible && !uiPointer && !bottomOutputActive,
                     resources.displayMetrics.density,
-                    cursorImage, cursorHotX, cursorHotY, cursorImageScale)
+                    cursorImage, cursorHotX, cursorHotY, cursorImageScale, cursorClicks, cursorPressed)
                 if (memoryHud.text.isNotEmpty()) HudText(memoryHud.text, hudColor, hudOpacity)
                 if (bottomOutputActive && !loading.visible) SwappedTopPanel()
                 val phonePanel = glassesOutputActive && !loading.visible && !drawerOpen && !pcKeyboardOpen
@@ -3516,7 +3516,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else WaylandCompositor.sendPointerDelta(dx, dy)
     }
 
+    private var cursorClicks by mutableStateOf(0)
+    private var cursorPressed by mutableStateOf(false)
+
     private fun sendSceneButton(code: Int, down: Boolean) {
+        if (loadingMode() == SessionService.MODE_DESKTOP) {
+            cursorPressed = down
+            if (down) cursorClicks++
+        }
         val writer = if (evdevMouseActive) mouseWriter else null
         if (writer != null) writer.writeMouseButton(code.toShort(), down)
         else WaylandCompositor.nativeSendSceneInput(3, code, if (down) 1 else 0)
