@@ -62,7 +62,11 @@ jobs:
           ( cd /tmp && sha256sum DroidDeck-suitaw.apk > DroidDeck-suitaw.apk.sha256 )
           gh release view dev -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create dev -R "$GITHUB_REPOSITORY" --prerelease --title "Dev build" --notes "Rolling personal build; replaced every time." --target main
-          gh release upload dev -R "$GITHUB_REPOSITORY" --clobber /tmp/DroidDeck-suitaw.apk /tmp/DroidDeck-suitaw.apk.sha256
+          for i in 1 2 3 4 5; do
+            gh release upload dev -R "$GITHUB_REPOSITORY" --clobber /tmp/DroidDeck-suitaw.apk /tmp/DroidDeck-suitaw.apk.sha256 && break
+            [ "$i" = 5 ] && exit 1
+            sleep 20
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: droiddeck-suitaw-signed
