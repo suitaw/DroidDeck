@@ -644,6 +644,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
         }
         sessionRoot = root
+        root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> root.post { applyDesktopSafeArea() } }
         surfaceView = SurfaceView(this)
         surfaceView.holder.addCallback(this)
         root.addView(surfaceView)
@@ -3686,6 +3687,34 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             else -> return false
         }
         return true
+    }
+
+    /** Keeps the desktop's corners and edges clear of the screen's rounded corners and cutout. */
+    private fun applyDesktopSafeArea() {
+        if (!::surfaceView.isInitialized || loadingMode() != SessionService.MODE_DESKTOP) return
+        if (isInPictureInPictureMode || bottomOutputActive) return
+        val insets = window.decorView.rootWindowInsets ?: return
+        var corner = 0
+        if (Build.VERSION.SDK_INT >= 31) {
+            for (position in intArrayOf(
+                android.view.RoundedCorner.POSITION_TOP_LEFT, android.view.RoundedCorner.POSITION_TOP_RIGHT,
+                android.view.RoundedCorner.POSITION_BOTTOM_LEFT, android.view.RoundedCorner.POSITION_BOTTOM_RIGHT,
+            )) corner = maxOf(corner, insets.getRoundedCorner(position)?.radius ?: 0)
+        }
+        // A square corner stays on screen when it is inset by r * (1 - cos 45 degrees).
+        val edge = kotlin.math.ceil(corner * 0.293f).toInt()
+        val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
+        val params = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+        params.setMargins(
+            maxOf(edge, cutout?.safeInsetLeft ?: 0), maxOf(edge, cutout?.safeInsetTop ?: 0),
+            maxOf(edge, cutout?.safeInsetRight ?: 0), maxOf(edge, cutout?.safeInsetBottom ?: 0),
+        )
+        val old = surfaceView.layoutParams as? FrameLayout.LayoutParams
+        if (old == null || old.leftMargin != params.leftMargin || old.topMargin != params.topMargin ||
+            old.rightMargin != params.rightMargin || old.bottomMargin != params.bottomMargin) {
+            Log.i(TAG, "desktop safe area ${params.leftMargin},${params.topMargin},${params.rightMargin},${params.bottomMargin} corner=$corner")
+            surfaceView.layoutParams = params
+        }
     }
 
     private fun hardKeyboardAttached(): Boolean = InputDevice.getDeviceIds().any { id ->

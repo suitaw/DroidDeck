@@ -4,7 +4,7 @@ DONE=/var/lib/droiddeck-zh-setup.done
 [ -e "$DONE" ] && exit 0
 sleep 20
 PACKS="language-pack-zh-hans language-pack-kde-zh-hans firefox-l10n-zh-cn fonts-noto-cjk fcitx5 fcitx5-chinese-addons fcitx5-frontend-qt6 fcitx5-frontend-gtk3 fcitx5-frontend-gtk4 fcitx5-config-qt"
-droiddeck-root env DEBIAN_FRONTEND=noninteractive sh -c "apt-get update -qq; apt-get install -y -qq --no-install-recommends $PACKS" || exit 1
+droiddeck-root env DEBIAN_FRONTEND=noninteractive sh -c "dpkg --configure -a; apt-get -o DPkg::Lock::Timeout=600 update -qq; apt-get -o DPkg::Lock::Timeout=600 install -y -qq --no-install-recommends $PACKS" || exit 1
 droiddeck-root touch "$DONE"
 if [ ! -e "$HOME/.config/fcitx5/profile" ]; then
   mkdir -p "$HOME/.config/fcitx5"

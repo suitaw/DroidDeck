@@ -112,7 +112,7 @@ class DesktopKeyboardButton(context: Context, private val onTap: () -> Unit) : V
 
     private companion object {
         const val SIZE = 52f
-        const val CENTER_X = 90f
-        const val CENTER_Y = 34f
+        const val CENTER_X = 44f
+        const val CENTER_Y = 96f
     }
 }
