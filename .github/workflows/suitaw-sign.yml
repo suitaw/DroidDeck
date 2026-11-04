@@ -6,7 +6,7 @@ on:
         description: Build APK run whose droiddeck-apk artifact to sign
         required: true
 permissions:
-  contents: read
+  contents: write
   actions: read
 jobs:
   sign:
@@ -53,6 +53,16 @@ jobs:
       - name: Forget the key
         if: always()
         run: rm -f "$RUNNER_TEMP/release.p12"
+      - name: Publish to the rolling dev release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cp out/*.apk /tmp/DroidDeck-suitaw.apk
+          ( cd /tmp && sha256sum DroidDeck-suitaw.apk > DroidDeck-suitaw.apk.sha256 )
+          gh release view dev -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create dev -R "$GITHUB_REPOSITORY" --prerelease --title "Dev build" --notes "Rolling personal build; replaced every time." --target main
+          gh release upload dev -R "$GITHUB_REPOSITORY" --clobber /tmp/DroidDeck-suitaw.apk /tmp/DroidDeck-suitaw.apk.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: droiddeck-suitaw-signed
