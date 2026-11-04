@@ -706,7 +706,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         keyboard = KeyboardHost(this).also { host ->
             host.onImeChanged = { updateDesktopKeyboardButton() }
             host.commitText = { text ->
-                if (desktopTextInput()) com.droiddeck.launcher.wayland.WaylandCompositor.textInputCommit(text)
+                if (desktopTextInput()) commitDesktopText(text)
             }
             root.addView(host)
         }
@@ -904,7 +904,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 }
             } else {
             com.droiddeck.launcher.ui.FocusGlideHost(androidx.compose.ui.Modifier.fillMaxSize()) {
-                CursorOverlay({ cursorPos }, cursorVisible && !uiPointer && !bottomOutputActive,
+                CursorOverlay({ cursorPos + androidx.compose.ui.geometry.Offset(surfaceView.left.toFloat(), surfaceView.top.toFloat()) }, cursorVisible && !uiPointer && !bottomOutputActive,
                     resources.displayMetrics.density,
                     cursorImage, cursorHotX, cursorHotY, cursorImageScale)
                 if (memoryHud.text.isNotEmpty()) HudText(memoryHud.text, hudColor, hudOpacity)
@@ -3718,6 +3718,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Log.i(TAG, "desktop safe area ${params.leftMargin},${params.topMargin},${params.rightMargin},${params.bottomMargin} corner=$corner")
             surfaceView.layoutParams = params
         }
+    }
+
+    private var desktopCommitSeq = 0L
+
+    /** droiddeck-ime picks these files up and commits the text to the focused window. */
+    private fun commitDesktopText(text: String) {
+        runCatching {
+            val dir = File(LinuxRuntime.sessionRoot(this), "agent").apply { mkdirs() }
+            val temp = File(dir, "pending-commit.tmp")
+            temp.writeText(text)
+            desktopCommitSeq++
+            check(temp.renameTo(File(dir, "commit-${System.currentTimeMillis()}${"%04d".format(desktopCommitSeq % 10000)}")))
+        }.onFailure { Log.w(TAG, "could not commit text to the desktop", it) }
     }
 
     private fun hardKeyboardAttached(): Boolean = InputDevice.getDeviceIds().any { id ->

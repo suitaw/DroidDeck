@@ -11,6 +11,7 @@ DISPLAY_ID = 1
 REGISTRY_ID = 2
 METHOD_ID = 3
 SETTLE = 0.15
+COMMIT_POLL = 0.03
 
 
 def wl_string(value):
@@ -74,6 +75,27 @@ class Report:
         print(f"droiddeck-ime: text field {'focused' if field else 'left'}", file=sys.stderr, flush=True)
 
 
+def take_commits(directory):
+    """Text from the Android keyboard, as commit-<sequence> files the app renames into place."""
+    if not directory:
+        return []
+    try:
+        names = sorted((n for n in os.listdir(directory) if n.startswith("commit-") and n.isascii() and n[7:].isdigit()),
+                       key=lambda n: int(n[7:]))
+    except OSError:
+        return []
+    texts = []
+    for name in names:
+        path = os.path.join(directory, name)
+        try:
+            with open(path, encoding="utf-8") as handle:
+                texts.append(handle.read())
+            os.unlink(path)
+        except OSError:
+            pass
+    return texts
+
+
 def connect():
     fd = os.environ.pop("WAYLAND_SOCKET", "")
     if fd.isdigit():
@@ -91,8 +113,13 @@ def main():
     contexts = {}
     current = None
     pending = None
+    serial = 0
     while True:
         timeout = None if pending is None else max(0.0, pending - time.monotonic())
+        if current is not None:
+            for text in take_commits(report.directory):
+                conn.send(current, 1, struct.pack("<I", serial) + wl_string(text))
+            timeout = COMMIT_POLL if timeout is None else min(timeout, COMMIT_POLL)
         try:
             batch = conn.messages(timeout)
         except (EOFError, ConnectionError):
@@ -125,6 +152,8 @@ def main():
                 if context == current:
                     current = None
                     pending = time.monotonic() + SETTLE
+            elif obj == current and opcode == 4:
+                (serial,) = struct.unpack_from("<I", payload)
             elif obj in contexts and opcode == 2:
                 hint, purpose = struct.unpack_from("<II", payload)
                 contexts[obj] = [hint, purpose]
