@@ -21,7 +21,22 @@ object ChrootSession {
     @Volatile var active = false
         private set
 
-    fun enabled(context: Context): Boolean = SessionPrefs.chrootMode(context) && File(SU).exists()
+    @Volatile private var rootOk = false
+
+    // File(SU).exists() is not usable: the app's SELinux domain may not stat su, yet it can run it. Ask su itself.
+    private fun rootWorks(): Boolean = try {
+        val p = ProcessBuilder(SU, "-c", "id -u").redirectErrorStream(true).start()
+        val out = p.inputStream.bufferedReader().readText().trim()
+        p.waitFor(10, TimeUnit.SECONDS) && p.exitValue() == 0 && out == "0"
+    } catch (e: Exception) { false }
+
+    fun enabled(context: Context): Boolean {
+        if (!SessionPrefs.chrootMode(context)) return false
+        if (rootOk) return true
+        rootOk = rootWorks()
+        if (!rootOk) Log.w(TAG, "chroot mode is on but su is not usable; staying on proot")
+        return rootOk
+    }
 
     private class Parsed(val root: String, val cwd: String, val binds: List<String>, val guest: List<String>)
 
