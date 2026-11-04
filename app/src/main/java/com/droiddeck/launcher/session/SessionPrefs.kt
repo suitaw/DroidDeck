@@ -714,6 +714,12 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("prootFastPath", on).apply()
     }
 
+    fun chrootMode(context: Context): Boolean = prefs(context).getBoolean("chrootMode", false)
+
+    fun setChrootMode(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("chrootMode", on).apply()
+    }
+
     fun cursorComposite(context: Context): Boolean = prefs(context).getBoolean("cursorComposite", false)
 
     fun setCursorComposite(context: Context, on: Boolean) {

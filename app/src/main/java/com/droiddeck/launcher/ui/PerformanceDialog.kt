@@ -54,6 +54,7 @@ fun PerformancePage(
     prootNoSeccomp: Boolean,
     prootFastPath: Boolean,
     cursorComposite: Boolean,
+    chrootMode: Boolean,
     guestHostname: String,
     phantomWarning: String?,
     onClientOverride: (Boolean) -> Unit,
@@ -73,6 +74,7 @@ fun PerformancePage(
     onProotNoSeccomp: (Boolean) -> Unit,
     onProotFastPath: (Boolean) -> Unit,
     onCursorComposite: (Boolean) -> Unit,
+    onChrootMode: (Boolean) -> Unit,
     onGuestHostname: (String) -> Unit,
     onClientCore: (Int, Boolean) -> Unit,
     onGameCore: (Int, Boolean) -> Unit,
@@ -195,6 +197,11 @@ fun PerformancePage(
                 host, "cursorcomposite", stringResource(R.string.perf_cursor_composite),
                 stringResource(R.string.perf_cursor_composite_hint),
                 cursorComposite, onChange = onCursorComposite,
+            )
+            ToggleRow(
+                host, "chroot", stringResource(R.string.perf_chroot),
+                stringResource(R.string.perf_chroot_hint),
+                chrootMode, onChange = onChrootMode,
             )
         }
         SettingsGroup(stringResource(R.string.perf_identity)) {

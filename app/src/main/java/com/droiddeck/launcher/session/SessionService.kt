@@ -43,6 +43,7 @@ import com.droiddeck.launcher.frontend.GameLaunchLink
 import com.droiddeck.launcher.input.FakeInputWriter
 import com.droiddeck.launcher.input.SteamControllerBle
 import com.droiddeck.launcher.runtime.BwrapSpawner
+import com.droiddeck.launcher.runtime.ChrootSession
 import com.droiddeck.launcher.runtime.LinuxNetworkLinkComponent
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.ProotFastPath
@@ -599,7 +600,7 @@ class SessionService : Service() {
         FileUtils.clear(File(LinuxRuntime.liveDir(this), "shm"))
 
         val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
-        val fastPathKey = if (ProotFastPath.enabled(this)) {
+        val fastPathKey = if (ProotFastPath.enabled(this) && !ChrootSession.enabled(this)) {
             val prootBinds = LinuxRuntime.binds(
                 this, sessionRoot, runtimeDir, Environment.getExternalStorageDirectory(), binds,
             )
@@ -670,13 +671,20 @@ class SessionService : Service() {
         }
         components.forEach { it.start() }
 
-        val line = command.joinToString(" ") {
+        val chrootCommand = if (ChrootSession.enabled(this)) {
+            ChrootSession.cleanup(this)
+            ChrootSession.command(this, command)
+        } else null
+        val line = (chrootCommand ?: command).joinToString(" ") {
             it.replace("\\", "\\\\").replace(" ", "\\ ")
         }
+        val launchEnv = if (chrootCommand != null) {
+            hostEnv.asArray().filterNot { it.startsWith("LD_LIBRARY_PATH=") || it.startsWith("PROOT_") }.toTypedArray()
+        } else hostEnv.asArray()
         watchLaunchRequests(sessionRoot)
         watchSyncWanted(root)
         EsyncPacks.fetchInBackground(this, root)
-        val pid = HostProcess.start(line, hostEnv.asArray(), root, { status ->
+        val pid = HostProcess.start(line, launchEnv, root, { status ->
             if (gen != sessionGen) {
                 Log.i(TAG, "an earlier session's process ended ($status); the current one carries on")
                 return@start
@@ -696,7 +704,7 @@ class SessionService : Service() {
                 components.reversed().forEach { runCatching { it.stop() } }
                 components.clear()
             }
-            if (pid > 1) Thread({ teardown(pid) }, "session-teardown").start()
+            if (pid > 1) Thread({ if (ChrootSession.active) ChrootSession.cleanup(applicationContext); teardown(pid) }, "session-teardown").start()
             return
         }
         sessionPid = pid
@@ -1962,7 +1970,10 @@ class SessionService : Service() {
                     if (prootPid > 1 && steamClientMayRun) askSteamToExit(prootPid)
                     com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
-                    if (prootPid > 1) teardown(prootPid)
+                    if (prootPid > 1) {
+                        if (ChrootSession.active) ChrootSession.cleanup(applicationContext)
+                        teardown(prootPid)
+                    }
                     killGuestLeftovers()
                     finishSessionStop(status, stoppedGen, collectEnded)
                     if (launcherEnded) importLauncherGames()

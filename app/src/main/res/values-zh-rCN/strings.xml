@@ -604,6 +604,8 @@
     <string name="perf_fastpath_hint">文件查找更快、卡顿更少。若某个程序找不到它的文件，请关闭。</string>
     <string name="perf_cursor_composite">在 gamescope 内绘制光标</string>
     <string name="perf_cursor_composite_hint">由 Gamescope 自行绘制指针，而不是交给 Android。使用手柄控制光标时请开启。在手机上关闭会更流畅。下次会话时生效。</string>
+    <string name="perf_chroot">用 chroot 运行桌面（实验）</string>
+    <string name="perf_chroot_hint">需要 root（在 KernelSU 里给本应用授权）。由内核直接运行，不再经过 proot 拦截，程序启动更快。会话起不来时请关闭此项。下次会话时生效。</string>
     <string name="perf_identity">会话标识</string>
     <string name="perf_hostname">主机名</string>
     <string name="perf_hostname_hint">Steam 看到的本设备名称。留空恢复为 %1$s。</string>
