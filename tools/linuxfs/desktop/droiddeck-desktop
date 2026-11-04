@@ -38,6 +38,7 @@ if [ -n "${LANGUAGE:-}" ]; then
 else
   kwriteconfig6 --file plasma-localerc --group Translations --key LANGUAGE --delete
 fi
+case "${LANG:-}" in zh*) (nohup /usr/local/bin/droiddeck-zh-setup >/tmp/droiddeck-zh-setup.log 2>&1 &) ;; esac
 cat > /usr/share/applications/droiddeck-steam-x64.desktop <<'ENTRY'
 [Desktop Entry]
 Type=Application

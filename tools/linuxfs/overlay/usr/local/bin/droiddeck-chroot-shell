@@ -1,11 +1,14 @@
 #!/usr/bin/python3
-import array
+import fcntl
+import json
 import os
+import select
 import signal
 import socket
 import struct
 import sys
-import json
+import termios
+import tty
 
 SOCKET_FILE = "/etc/droiddeck/root-socket"
 
@@ -21,18 +24,12 @@ def socket_name():
     return "\0" + (name or "com.droiddeck.launcher.root")
 
 
-def read_exact(sock, n):
-    data = b""
-    while len(data) < n:
-        chunk = sock.recv(n - len(data))
-        if not chunk:
-            return None
-        data += chunk
-    return data
+def frame(kind, payload):
+    return kind + struct.pack(">i", len(payload)) + payload
 
 
 def main(argv):
-    if not all(os.isatty(fd) for fd in (0, 1, 2)):
+    if not (os.isatty(0) and os.isatty(1)):
         print("chroot-shell: run this in a terminal", file=sys.stderr)
         return 2
     as_root = argv[1:] == ["--root"]
@@ -41,24 +38,55 @@ def main(argv):
         return 2
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.connect(socket_name())
-    body = json.dumps({"root": as_root}).encode()
-    fds = array.array("i", [0, 1, 2])
-    sock.sendmsg([b"C" + struct.pack(">i", len(body))], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, fds)])
-    sock.sendall(body)
-    for signum in (signal.SIGINT, signal.SIGQUIT, signal.SIGTSTP):
-        signal.signal(signum, signal.SIG_IGN)
+    sock.sendall(frame(b"C", json.dumps({"root": as_root}).encode()))
+
+    wake_r, wake_w = os.pipe()
+    os.set_blocking(wake_w, False)
+    signal.set_wakeup_fd(wake_w)
+    signal.signal(signal.SIGWINCH, lambda *_: None)
+
+    def send_size():
+        rows, cols = struct.unpack("HHHH", fcntl.ioctl(1, termios.TIOCGWINSZ, b"\0" * 8))[:2]
+        sock.sendall(frame(b"R", struct.pack(">HH", rows, cols)))
+
+    saved = termios.tcgetattr(0)
     status = 1
-    while True:
-        head = read_exact(sock, 5)
-        if head is None:
-            break
-        payload = read_exact(sock, struct.unpack(">i", head[1:])[0]) or b""
-        kind = chr(head[0])
-        if kind == "E":
-            print("chroot-shell: " + payload.decode(errors="replace"), file=sys.stderr)
-        elif kind == "X":
-            status = int(payload.decode() or "1")
-            break
+    buf = b""
+    try:
+        tty.setraw(0)
+        send_size()
+        while True:
+            ready, _, _ = select.select([0, sock, wake_r], [], [])
+            if wake_r in ready:
+                os.read(wake_r, 64)
+                send_size()
+            if 0 in ready:
+                data = os.read(0, 65536)
+                if not data:
+                    break
+                sock.sendall(frame(b"D", data))
+            if sock in ready:
+                more = sock.recv(65536)
+                if not more:
+                    break
+                buf += more
+                done = False
+                while len(buf) >= 5:
+                    size = struct.unpack(">i", buf[1:5])[0]
+                    if len(buf) < 5 + size:
+                        break
+                    kind, payload, buf = buf[:1], buf[5:5 + size], buf[5 + size:]
+                    if kind == b"D":
+                        os.write(1, payload)
+                    elif kind == b"E":
+                        os.write(2, b"\r\nchroot-shell: " + payload + b"\r\n")
+                    elif kind == b"X":
+                        status = int(payload.decode() or "1")
+                        done = True
+                if done:
+                    break
+    finally:
+        termios.tcsetattr(0, termios.TCSAFLUSH, saved)
     return status
 
 

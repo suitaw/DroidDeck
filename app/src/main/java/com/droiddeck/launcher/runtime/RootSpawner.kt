@@ -65,7 +65,7 @@ object RootSpawner {
                 val body = ByteArray(input.readInt()).also { input.readFully(it) }
                 client.ancillaryFileDescriptors?.let { received.addAll(it) }
                 if (kind == 'C'.code) {
-                    chroot(context, JSONObject(String(body, Charsets.UTF_8)), received, out, id)
+                    chroot(context, JSONObject(String(body, Charsets.UTF_8)), client, input, id)
                     return
                 }
                 if (kind != 'R'.code) return
@@ -179,24 +179,20 @@ object RootSpawner {
         }
     }
 
-    private fun chroot(context: Context, request: JSONObject, fds: List<FileDescriptor>, out: DataOutputStream, id: Int) {
+    private fun chroot(context: Context, request: JSONObject, client: LocalSocket, input: DataInputStream, id: Int) {
         val asRoot = request.optBoolean("root", false)
         if (asRoot && !ChrootConfirmActivity.ask(context)) throw IOException("root was not allowed")
-        val streams = listOf(stdio(fds.getOrNull(0), false), stdio(fds.getOrNull(1), true), stdio(fds.getOrNull(2), true))
-        try {
-            if (streams.any { it.redirect == null }) throw IOException("chroot-shell needs a terminal")
-            val process = ProcessBuilder(SU, "-c", ENTER + if (asRoot) " root" else " user ${Process.myUid()}")
-                .directory(File("/"))
-                .redirectInput(streams[0].redirect)
-                .redirectOutput(streams[1].redirect)
-                .redirectError(streams[2].redirect)
-                .start()
-            Log.i(TAG, "chroot $id root=$asRoot")
-            val status = process.waitFor()
-            runCatching { synchronized(out) { frame(out, 'X', status.toString().toByteArray()) } }
-        } finally {
-            streams.forEach { s -> runCatching { s.dup?.close() } }
-        }
+        val mode = if (asRoot) "root" else "user ${Process.myUid()}"
+        val process = ProcessBuilder(SU, "-c", "$ENTER $mode 2>/dev/null")
+            .directory(File("/"))
+            .redirectErrorStream(true)
+            .start()
+        Log.i(TAG, "chroot $id root=$asRoot")
+        pump(input, process.outputStream, "chroot-$id-in")
+        val output = pump(process.inputStream, client.outputStream, "chroot-$id-out")
+        val status = process.waitFor()
+        output.join(2000)
+        Log.i(TAG, "chroot $id exited $status")
     }
 
     private fun signal(top: Int, signal: Int) {

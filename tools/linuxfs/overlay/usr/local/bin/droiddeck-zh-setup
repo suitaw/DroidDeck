@@ -1,0 +1,10 @@
+#!/bin/bash
+# Installs the Chinese translations once; the desktop picks them up at the next login.
+DONE=/var/lib/droiddeck-zh-setup.done
+[ -e "$DONE" ] && exit 0
+sleep 20
+PACKS="language-pack-zh-hans language-pack-kde-zh-hans firefox-l10n-zh-cn fonts-noto-cjk"
+droiddeck-root env DEBIAN_FRONTEND=noninteractive sh -c "apt-get update -qq; apt-get install -y -qq --no-install-recommends $PACKS" || exit 1
+droiddeck-root touch "$DONE"
+notify-send -a DroidDeck "中文语言包已安装" "注销或重启桌面后，菜单和程序会显示中文。" 2>/dev/null
+true

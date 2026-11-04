@@ -75,6 +75,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-downloads" to "usr/local/bin/droiddeck-downloads",
             "usr/local/bin/droiddeck-root" to "usr/local/bin/droiddeck-root",
             "usr/local/bin/droiddeck-chroot-shell" to "usr/local/bin/chroot-shell",
+            "usr/local/bin/droiddeck-zh-setup" to "usr/local/bin/droiddeck-zh-setup",
             "usr/local/bin/droiddeck-text" to "usr/local/bin/droiddeck-text",
             "usr/local/bin/droiddeck-snapd" to "usr/local/bin/droiddeck-snapd",
             "usr/local/bin/droiddeck-emulators" to "usr/local/bin/droiddeck-emulators",
