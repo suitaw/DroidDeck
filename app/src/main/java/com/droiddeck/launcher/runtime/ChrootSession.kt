@@ -96,8 +96,11 @@ object ChrootSession {
         val dir = File(context.filesDir, "chroot").apply { mkdirs() }
         val dom = File(dir, "dom.sh")
         // The rootfs needs real hard links here (libICE locks, for one) and the app's domain may not make them.
-        write(File(dir, "sepolicy.rule"), "allow untrusted_app_27 app_data_file file link\n")
-        write(File(dir, "linkprobe.sh"), "export PATH=/usr/bin:/bin; f=/tmp/.dd-link.\$\$; : > \$f; ln \$f \$f.2; r=\$?; rm -f \$f \$f.2; exit \$r\n")
+        // Terminal ioctls on the app's own ptys are refused too, so nothing in Konsole sees a tty. TIOCSTI (0x5412) stays out.
+        write(File(dir, "sepolicy.rule"), "allow untrusted_app_27 app_data_file file link\n" +
+            "allow untrusted_app_27 untrusted_app_all_devpts chr_file { read write getattr open ioctl }\n" +
+            "allowxperm untrusted_app_27 untrusted_app_all_devpts chr_file ioctl { 0x5400-0x5411 0x5413-0x54ff }\n")
+        write(File(dir, "linkprobe.sh"), "export PATH=/usr/bin:/bin; f=/tmp/.dd-link.\$\$; : > \$f; ln \$f \$f.2; r=\$?; rm -f \$f \$f.2; [ \$r -eq 0 ] || exit \$r; [ ! -x /usr/bin/script ] || script -qec 'test -t 0' /dev/null </dev/null >/dev/null 2>&1\n")
         write(dom,
             "#!/bin/sh\n" +
                 "cd \"\${DD_CWD:-/}\" 2>/dev/null || cd /\n" +
@@ -172,7 +175,7 @@ object ChrootSession {
         line("i=0; while [ \$i -lt 5 ]; do")
         line("  $asApp /bin/sh ${q(File(dir, "linkprobe.sh").path)} 2>/dev/null && break")
         line("  /data/adb/ksud sepolicy apply \"\$F/chroot/sepolicy.rule\" >/dev/null 2>&1; sleep 1; i=\$((i+1))")
-        line("done; [ \$i -lt 5 ] || echo 'chroot: the hard link rule is not active'")
+        line("done; [ \$i -lt 5 ] || echo 'chroot: the sepolicy rules are not active'")
         line("exec chroot \"\$R\" /usr/bin/setpriv $priv /bin/sh ${q(File(dir, "dom.sh").path)} $guest")
         val script = File(dir, "session.sh")
         write(script, sb.toString())
