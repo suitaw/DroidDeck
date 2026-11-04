@@ -1,0 +1,26 @@
+#!/system/bin/sh
+# chroot-shell 的唯一入口：enter root | enter user <App uid>。挂载都在临时命名空间里，退出就没。
+R=/data/local/chroot/debian
+case "$1" in
+  root) ;;
+  user) case "$2" in 1[0-9][0-9][0-9][0-9]) ;; *) echo "enter: bad uid" >&2; exit 2 ;; esac ;;
+  *) echo "usage: enter root | enter user <uid>" >&2; exit 2 ;;
+esac
+export MODE="$1" APPUID="$2" R
+exec /system/bin/unshare -m /system/bin/sh -c '
+mount --make-rprivate / 2>/dev/null
+b() { mkdir -p "$R$2"; mount --rbind "$1" "$R$2"; }
+b /dev /dev; b /proc /proc; b /sys /sys
+[ -d /storage/emulated/0/Download ] && b /storage/emulated/0/Download /mnt/Download
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin LANG=zh_CN.UTF-8 LC_ALL=C.UTF-8 TERM="${TERM:-xterm-256color}"
+unset LD_PRELOAD LD_LIBRARY_PATH ANDROID_ROOT ANDROID_DATA BOOTCLASSPATH TMPDIR
+if [ "$MODE" = root ]; then
+  export HOME=/root
+  exec chroot "$R" /usr/bin/env -i TERM="$TERM" PATH="$PATH" LANG="$LANG" LC_ALL="$LC_ALL" HOME=/root USER=root /usr/bin/python3 /usr/local/lib/cr-relay.py
+fi
+sed -i -E "s/^dev:x:[0-9]+:[0-9]+:/dev:x:$APPUID:$APPUID:/" "$R/etc/passwd"
+sed -i -E "s/^dev:x:[0-9]+:/dev:x:$APPUID:/" "$R/etc/group"
+chown -R "$APPUID:$APPUID" "$R/home/dev"
+export HOME=/home/dev USER=dev
+exec chroot "$R" /usr/bin/env -i TERM="$TERM" PATH="$PATH" LANG="$LANG" LC_ALL="$LC_ALL" HOME=/home/dev USER=dev /usr/bin/setpriv --reuid="$APPUID" --regid="$APPUID" --groups=3003,1015,9997 --inh-caps=-all /usr/bin/python3 /usr/local/lib/cr-relay.py
+'

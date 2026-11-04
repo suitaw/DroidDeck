@@ -1611,6 +1611,8 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun playSteam() {
+        startSession(Intent(this, SessionActivity::class.java).putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
+        return
         val storage = com.droiddeck.launcher.storage.StorageState
         if (!SessionState.running && !storage.lowSpaceDismissed && storage.lowOnSpace(this)) {
             lowSpace = storage.freeBytes(this)
@@ -1626,6 +1628,8 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun startSteamSession(steamVr: Boolean = false) {
+        startSession(Intent(this, SessionActivity::class.java).putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP))
+        return
         startSession(Intent(this, SessionActivity::class.java).putExtra(SessionActivity.EXTRA_STEAMVR, steamVr), steamSession = true)
     }
 

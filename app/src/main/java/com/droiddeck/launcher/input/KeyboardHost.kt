@@ -26,6 +26,8 @@ class KeyboardHost(
     var imeShowing = false
         private set
     var onImeChanged: ((Boolean) -> Unit)? = null
+    /** Sends text the key map cannot type (Chinese and so on); null keeps the keys-only behaviour. */
+    var commitText: ((String) -> Unit)? = null
 
     init {
         isFocusable = false
@@ -38,8 +40,9 @@ class KeyboardHost(
 
     override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
         if (!shown) return null
-        outAttrs.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
-            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+        outAttrs.inputType = if (commitText != null) InputType.TYPE_CLASS_TEXT
+            else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS or
+                InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
         outAttrs.imeOptions = EditorInfo.IME_ACTION_NONE or EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_FLAG_NO_EXTRACT_UI
         return KeyConnection()
@@ -90,8 +93,16 @@ class KeyboardHost(
     }
 
     private inner class KeyConnection : BaseInputConnection(this, false) {
+        private var composing = ""
+
         override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            composing = ""
             if (text.isNullOrEmpty()) return true
+            val direct = commitText
+            if (direct != null && text.any { it.code >= 0x80 }) {
+                direct(text.toString())
+                return true
+            }
             val events = map.getEvents(text.toString().toCharArray())
             if (events != null) {
                 for (event in events) sendKeyEvent(event)
@@ -107,8 +118,17 @@ class KeyboardHost(
             return true
         }
 
-        override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean = true
-        override fun finishComposingText(): Boolean = true
+        override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
+            composing = text?.toString().orEmpty()
+            return true
+        }
+
+        override fun finishComposingText(): Boolean {
+            val pending = composing
+            composing = ""
+            if (pending.isNotEmpty() && commitText != null) commitText(pending, 1)
+            return true
+        }
 
         override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
             repeat(beforeLength) { tap(KeyEvent.KEYCODE_DEL) }

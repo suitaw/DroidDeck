@@ -589,7 +589,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         if (!SessionState.running && SessionState.phase in setOf(SessionPhase.IDLE, SessionPhase.FAILED)) {
-            val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
+            val mode = intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_DESKTOP
             SessionState.programArgs = intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS)?.toList().orEmpty()
             SessionEvents.begin(this, mode, SessionPaths.label(mode, intent.getStringExtra(SessionService.EXTRA_PROGRAM)))
             SessionState.secondScreenAutoOpened = false
@@ -702,6 +702,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         keyboard = KeyboardHost(this).also { host ->
             host.onImeChanged = { updateDesktopKeyboardButton() }
+            host.commitText = { text ->
+                if (desktopTextInput()) com.droiddeck.launcher.wayland.WaylandCompositor.textInputCommit(text)
+            }
             root.addView(host)
         }
         desktopKeyboardButton = com.droiddeck.launcher.input.DesktopKeyboardButton(this) { keyboard?.show() }
@@ -762,7 +765,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             val needDesktop = intent.getStringExtra(SessionService.EXTRA_MODE) == SessionService.MODE_DESKTOP &&
                 (repair || !com.droiddeck.launcher.runtime.DesktopCatalog.desktopInstalled(this))
             val program = intent.getStringExtra(SessionService.EXTRA_PROGRAM)
-            val protonUser = (intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM) == SessionService.MODE_STEAM ||
+            val protonUser = (intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_DESKTOP) == SessionService.MODE_STEAM ||
                 program == com.droiddeck.launcher.runtime.BattleNet.PROGRAM || program == com.droiddeck.launcher.session.NoSteamLaunch.PROTON_RUN
             val needProton = protonUser && com.droiddeck.launcher.runtime.DesktopCatalog.protonSeedNeeded(this)
             if (needRuntime || needResume || needDesktop || needProton) installThenStart(needRuntime, needDesktop, needProton, needResume)
@@ -1808,7 +1811,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun loadingMode(): String =
         if (SessionState.running) SessionState.mode
-        else intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
+        else intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_DESKTOP
 
     private fun pausedTitle(): String = when (SessionState.mode) {
         SessionService.MODE_DESKTOP -> getString(R.string.session_desktop_paused)
@@ -2119,7 +2122,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }
         }
         if (!CompositorHost.isStarted) {
-            val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM)
+            val mode = SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_DESKTOP)
             val probe = HdrSupport.probe(this, glassesScreen?.display)
             WaylandCompositor.nativeSetHdrDisplay(
                 probe.displayId, probe.name, probe.formats, probe.hdr10,
@@ -2155,7 +2158,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!SessionState.running) {
             SessionEvents.transition(SessionPhase.STARTING_GUEST, "guest.starting")
             SessionService.start(
-                this, intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM,
+                this, intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_DESKTOP,
                 intent.getStringExtra(SessionService.EXTRA_PROGRAM),
                 intent.getStringExtra(SessionService.EXTRA_STEAM_UI),
                 intent.getStringExtra(SessionService.EXTRA_STEAM_URL),
@@ -2267,7 +2270,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun displayMode(): String = SessionPrefs.displayMode(this,
-        intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM, intent.getStringExtra(SessionService.EXTRA_PROGRAM))
+        intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_DESKTOP, intent.getStringExtra(SessionService.EXTRA_PROGRAM))
 
     private fun outputSize(): Pair<Int, Int> =
         com.droiddeck.launcher.session.SessionDisplay.resolveChoice(com.droiddeck.launcher.session.SessionDisplay.panelSize(this),

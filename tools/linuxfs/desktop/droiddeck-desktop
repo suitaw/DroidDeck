@@ -28,9 +28,6 @@ find "$XDG_RUNTIME_DIR" -mindepth 1 -maxdepth 1 ! -name 'wayland-0*' ! -name 'ke
 chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null
 mkdir -p /tmp/.X11-unix /tmp/.ICE-unix && chmod 1777 /tmp/.X11-unix /tmp/.ICE-unix 2>/dev/null
 export BL_DESKTOP=1
-ln -sf /usr/local/bin/droiddeck-steam-launch /usr/local/bin/steamdeck-steam 2>/dev/null
-ln -sf /usr/local/bin/droiddeck-steam-shim /usr/local/bin/steam 2>/dev/null
-python3 /usr/local/bin/droiddeck-desktop-games 2>&1 | sed 's/^/[games] /'
 # startplasma applies this file over the session environment, and keeps what an earlier session wrote.
 kwriteconfig6 --file plasma-localerc --group Formats --key LANG "${LANG:-C.UTF-8}"
 if [ -n "${LANGUAGE:-}" ]; then
@@ -39,15 +36,6 @@ else
   kwriteconfig6 --file plasma-localerc --group Translations --key LANGUAGE --delete
 fi
 case "${LANG:-}" in zh*) (nohup /usr/local/bin/droiddeck-zh-setup >/tmp/droiddeck-zh-setup.log 2>&1 &) ;; esac
-cat > /usr/share/applications/droiddeck-steam-x64.desktop <<'ENTRY'
-[Desktop Entry]
-Type=Application
-Name=Steam x86-64 (FEX, experimental)
-Comment=Valve's x86-64 Linux client under FEX, in its own home with its own login
-Exec=konsole -e /usr/local/bin/droiddeck-steam-x64
-Icon=steam
-Categories=System;
-ENTRY
 python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'
 ( while sleep 30; do python3 /usr/local/bin/droiddeck-pad-defaults 2>&1 | sed 's/^/[pads] /'; done ) &
 python3 /usr/local/bin/droiddeck-desktop-gpu 2>&1 | sed 's/^/[gpu] /'
@@ -70,14 +58,8 @@ python3 /usr/local/bin/droiddeck-open --install 2>&1 | sed 's/^/[open] /'
 export APPIMAGE_EXTRACT_AND_RUN=1
 [ -e /etc/xdg/kiorc ] || printf '[Executable scripts]\nbehaviourOnLaunch=execute\n' >/etc/xdg/kiorc 2>/dev/null
 desktop_dir=$(xdg-user-dir DESKTOP 2>/dev/null); [ -n "$desktop_dir" ] && [ "$desktop_dir" != "$HOME" ] || desktop_dir=$HOME/Desktop
-if [ ! -e "$HOME/.config/droiddeck-desktop-icons" ]; then
-  mkdir -p "$desktop_dir" "$HOME/.config"
-  cp -f /usr/share/applications/droiddeck-return-gaming.desktop "$desktop_dir/Return.desktop" 2>/dev/null
-  cp -f /usr/share/applications/steamdeck-steam.desktop "$desktop_dir/steam.desktop" 2>/dev/null
-  chmod +x "$desktop_dir"/*.desktop 2>/dev/null
-  touch "$HOME/.config/droiddeck-desktop-icons"
-fi
-[ -f "$desktop_dir/Return.desktop" ] && cp -f /usr/share/applications/droiddeck-return-gaming.desktop "$desktop_dir/Return.desktop" 2>/dev/null
+rm -f "$desktop_dir/Return.desktop" "$desktop_dir/steam.desktop" /usr/share/applications/steamdeck-steam.desktop /usr/share/applications/droiddeck-return-gaming.desktop /usr/share/applications/droiddeck-steam-x64.desktop 2>/dev/null
+sed -i 's/applications:steamdeck-steam\.desktop,\?//g' "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" 2>/dev/null
 if command -v flatpak >/dev/null 2>&1 && [ ! -d /var/lib/pacman ]; then
   FLATPAK_BWRAP=/usr/local/bin/droiddeck-bwrap flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo >/dev/null 2>&1 &
 fi
@@ -129,8 +111,4 @@ echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
 dbus-run-session -- startplasma-wayland
 rc=$?
 echo "== droiddeck-desktop: Plasma ended ($rc)"
-if [ "$rc" -eq 0 ] && [ -z "${BL_BOTTOM_DESKTOP:-}" ]; then
-  /usr/local/bin/droiddeck-steam-launch bigpicture
-  sleep 30
-fi
 exit $rc
