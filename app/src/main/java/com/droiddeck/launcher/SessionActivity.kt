@@ -3667,11 +3667,14 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     private fun onMouse(event: MotionEvent): Boolean {
+        // These events are in window coordinates; the desktop's surface may be inset from the window.
+        val x = (event.x - surfaceView.left).coerceIn(0f, surfaceView.width.toFloat())
+        val y = (event.y - surfaceView.top).coerceIn(0f, surfaceView.height.toFloat())
         when (event.actionMasked) {
             MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_MOVE, MotionEvent.ACTION_HOVER_ENTER ->
-                if (evdevMouseActive) sendMouseDelta(event.x, event.y) else movePointer(event.x, event.y)
+                if (evdevMouseActive) sendMouseDelta(x, y) else movePointer(x, y)
             MotionEvent.ACTION_BUTTON_PRESS, MotionEvent.ACTION_BUTTON_RELEASE -> {
-                if (evdevMouseActive) sendMouseDelta(event.x, event.y) else movePointer(event.x, event.y)
+                if (evdevMouseActive) sendMouseDelta(x, y) else movePointer(x, y)
                 val button = when (event.actionButton) {
                     MotionEvent.BUTTON_SECONDARY -> PointerGestures.BTN_RIGHT
                     MotionEvent.BUTTON_TERTIARY -> PointerGestures.BTN_MIDDLE
