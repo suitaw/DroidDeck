@@ -120,6 +120,9 @@ if [ "$(cat /usr/share/droiddeck/kwin-compositor 2>/dev/null)" = opengl ]; then
   export PATH=/run/droiddeck/kwin:$PATH
 fi
 echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
+# KWin splits this variable on commas. Unset, that gives [""], which matches the nameless keyboard of its Wayland
+# backend, so every key skipped the input method and fcitx5 never saw one.
+export KWIN_DEVICE_SKIPS_INPUT_METHOD=droiddeck-none
 dbus-run-session -- startplasma-wayland
 rc=$?
 echo "== droiddeck-desktop: Plasma ended ($rc)"
