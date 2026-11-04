@@ -121,10 +121,9 @@ internal fun BottomBar(
 }
 
 internal fun navigationKeys(s: FrontEndState) = buildList {
-    if (s.gameStoresEnabled) add("stores")
     add("desktop"); add("components")
     if (s.isHomeApp) add("android-apps")
-    add("setup"); add("updates")
+    add("setup")
 }
 
 internal object RailLabels {
@@ -155,7 +154,7 @@ internal fun SideRail(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.width(if (iconOnly) 64.dp else 92.dp).background(colors.surface).padding(vertical = if (compact) 8.dp else 12.dp),
     ) {
-        val count = 4 + (if (s.gameStoresEnabled) 1 else 0) + (if (s.isHomeApp) 1 else 0)
+        val count = 3 + (if (s.isHomeApp) 1 else 0)
         BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
         val fit = (maxHeight / count - 4.dp).coerceIn(44.dp, if (iconOnly) 48.dp else if (compact) 52.dp else 60.dp)
         val shown = Hops.railPreview ?: selected
