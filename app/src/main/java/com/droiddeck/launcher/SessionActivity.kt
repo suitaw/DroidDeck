@@ -545,6 +545,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private val deviceListener = object : InputManager.InputDeviceListener {
         override fun onInputDeviceAdded(deviceId: Int) {
             logInputDevice("connected", deviceId)
+            publishHardKeyboard()
             joyConVr?.refresh()
             padBridge?.syncConnectedControllers()
             refreshControls()
@@ -554,6 +555,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         override fun onInputDeviceRemoved(deviceId: Int) {
             physicalShortcuts.onDeviceRemoved(deviceId)
+            publishHardKeyboard()
             Log.i(TAG, "input device $deviceId disconnected")
             backQamInput.onDeviceRemoved(deviceId)
             joyConVr?.refresh()
@@ -3686,6 +3688,20 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return true
     }
 
+    private fun hardKeyboardAttached(): Boolean = InputDevice.getDeviceIds().any { id ->
+        val d = InputDevice.getDevice(id)
+        d != null && !d.isVirtual && d.isExternal && d.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC &&
+            d.hasKeys(KeyEvent.KEYCODE_Q, KeyEvent.KEYCODE_A, KeyEvent.KEYCODE_Z).all { it }
+    }
+
+    private fun publishHardKeyboard() {
+        runCatching {
+            val flag = File(LinuxRuntime.rootDir(this), "etc/droiddeck/hard-keyboard")
+            flag.parentFile?.mkdirs()
+            flag.writeText(if (hardKeyboardAttached()) "1" else "0")
+        }.onFailure { Log.w(TAG, "could not publish the keyboard state", it) }
+    }
+
     private fun mouseAttached(): Boolean = InputDevice.getDeviceIds().any { id ->
         val d = InputDevice.getDevice(id)
         d != null && !d.isVirtual && d.supportsSource(InputDevice.SOURCE_MOUSE)
@@ -4133,6 +4149,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         (getSystemService(INPUT_SERVICE) as? InputManager)
             ?.registerInputDeviceListener(deviceListener, Handler(Looper.getMainLooper()))
+        publishHardKeyboard()
         refreshSecondScreenDisplays()
         if (SessionState.guestPid > 1) padBridge?.syncConnectedControllers()
         joyConVr?.refresh()

@@ -50,10 +50,8 @@ Exec=/usr/local/bin/droiddeck-ime
 NoDisplay=true
 X-KDE-Wayland-VirtualKeyboard=true
 ENTRY
-input_method=$(kreadconfig6 --file kwinrc --group Wayland --key InputMethod 2>/dev/null)
-case $input_method in
-  ''|*/droiddeck-ime.desktop) kwriteconfig6 --file kwinrc --group Wayland --key InputMethod /usr/local/share/applications/droiddeck-ime.desktop ;;
-esac
+/usr/local/bin/droiddeck-ime-switch --once
+(nohup /usr/local/bin/droiddeck-ime-switch >/tmp/droiddeck-ime-switch.log 2>&1 &)
 python3 /usr/local/bin/droiddeck-open --install 2>&1 | sed 's/^/[open] /'
 export APPIMAGE_EXTRACT_AND_RUN=1
 [ -e /etc/xdg/kiorc ] || printf '[Executable scripts]\nbehaviourOnLaunch=execute\n' >/etc/xdg/kiorc 2>/dev/null

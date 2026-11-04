@@ -1,0 +1,25 @@
+#!/bin/bash
+# A hardware keyboard types through fcitx5; without one the Android keyboard types through droiddeck-ime.
+# The app writes 1 or 0 to /etc/droiddeck/hard-keyboard. KWin holds one input method and swaps it live.
+FLAG=/etc/droiddeck/hard-keyboard
+ANDROID_IME=/usr/local/share/applications/droiddeck-ime.desktop
+FCITX=/usr/share/applications/org.fcitx.Fcitx5.desktop
+
+wanted() {
+  if [ "$(cat "$FLAG" 2>/dev/null)" = 1 ] && [ -f "$FCITX" ]; then echo "$FCITX"; else echo "$ANDROID_IME"; fi
+}
+
+apply() {
+  [ "$1" = "$(kreadconfig6 --file kwinrc --group Wayland --key InputMethod 2>/dev/null)" ] && return
+  [ "$1" = "$ANDROID_IME" ] && pkill -x fcitx5
+  kwriteconfig6 --file kwinrc --group Wayland --key InputMethod ${2:+--notify} "$1"
+  echo "input method: $1"
+}
+
+if [ "${1:-}" = --once ]; then
+  apply "$(wanted)"
+  exit 0
+fi
+while sleep 1; do
+  apply "$(wanted)" notify
+done
