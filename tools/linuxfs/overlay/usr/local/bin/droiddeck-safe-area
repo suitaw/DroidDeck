@@ -56,6 +56,31 @@ def place_panel(bus, left, right):
                           stderr=subprocess.DEVNULL, check=False).returncode == 0
 
 
+def first_look(bus):
+    """A new desktop opens looking like Windows 11: centered taskbar, light colors. Later changes are the user's."""
+    stamp = os.path.expanduser("~/.local/share/droiddeck/first-look")
+    if os.path.exists(stamp):
+        return
+    script = (
+        "panels().forEach(function(p){var kick=0,tasks=0,tray=0;p.widgets().forEach(function(w){"
+        "if(w.type=='org.kde.plasma.kickoff')kick=w.id;else if(w.type=='org.kde.plasma.icontasks')tasks=w;"
+        "else if(w.type=='org.kde.plasma.systemtray')tray=w.id;});if(!kick||!tasks||!tray)return;"
+        "tasks.currentConfigGroup=['General'];tasks.writeConfig('fill',false);tasks.reloadConfig();"
+        "var a=p.addWidget('org.kde.plasma.panelspacer').id,b=p.addWidget('org.kde.plasma.panelspacer').id;"
+        "p.currentConfigGroup=['General'];p.writeConfig('AppletOrder',[a,kick,tasks.id,b,tray].join(';'));p.reloadConfig();});"
+        "desktops().forEach(function(d){d.wallpaperPlugin='org.kde.image';"
+        "d.currentConfigGroup=['Wallpaper','org.kde.image','General'];"
+        "d.writeConfig('Image','file:///usr/share/wallpapers/Next/');d.reloadConfig();});"
+    )
+    env = dict(os.environ, DBUS_SESSION_BUS_ADDRESS=bus)
+    done = subprocess.run(["qdbus6", "org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell.evaluateScript", script],
+                          env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    subprocess.run(["plasma-apply-colorscheme", "BreezeLight"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+    if done.returncode == 0:
+        os.makedirs(os.path.dirname(stamp), exist_ok=True)
+        open(stamp, "w").close()
+
+
 placed = None
 while True:
     time.sleep(3)
@@ -63,6 +88,7 @@ while True:
     bus, shell = session_bus()
     if not insets or not bus:
         continue
+    first_look(bus)
     state = (insets, read_scale(), shell)
     if state != placed:
         left, _, right, _ = [math.ceil(v / state[1]) for v in insets]

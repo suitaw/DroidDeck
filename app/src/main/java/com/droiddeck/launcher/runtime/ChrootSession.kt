@@ -182,6 +182,31 @@ object ChrootSession {
         return listOf(SU, "-c", "sh ${script.path}")
     }
 
+    @Volatile private var inFront: Boolean? = null
+
+    /**
+     * A chroot's processes never get Android's foreground and background moves, so they would stay in top-app
+     * after the app leaves the screen, competing with whatever the user went on to.
+     */
+    fun setInFront(context: Context, front: Boolean) {
+        if (!active || inFront == front) return
+        inFront = front
+        val root = LinuxRuntime.rootDir(context).path
+        val set = if (front) "top-app" else "background"
+        val cpu = if (front) "top-app" else "foreground"
+        val script =
+            "R=${q(root)}; for p in /proc/[0-9]*; do [ \"\$(readlink \$p/root 2>/dev/null)\" = \"\$R\" ] || continue; n=\${p#/proc/}; " +
+                "echo \$n > /dev/cpuset/$set/cgroup.procs 2>/dev/null; echo \$n > /dev/cpuctl/$cpu/cgroup.procs 2>/dev/null; done"
+        Thread({
+            try {
+                val p = ProcessBuilder(SU, "-c", script).redirectErrorStream(true).start()
+                if (!p.waitFor(10, TimeUnit.SECONDS)) p.destroyForcibly()
+            } catch (e: Exception) {
+                Log.w(TAG, "scheduling group: $e")
+            }
+        }, "chroot-sched").start()
+    }
+
     /** Stops everything still running with the rootfs as its root (TERM, then KILL after about 3 seconds). */
     fun cleanup(context: Context) {
         val root = LinuxRuntime.rootDir(context).path

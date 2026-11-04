@@ -4161,6 +4161,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
 
     override fun onStart() {
+        com.droiddeck.launcher.runtime.ChrootSession.setInFront(this, true)
         super.onStart()
         if (runtimeRemovalBlocked) return
         started = true
@@ -4184,6 +4185,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     }
 
     override fun onStop() {
+        com.droiddeck.launcher.runtime.ChrootSession.setInFront(this, false)
         if (runtimeRemovalBlocked) { super.onStop(); return }
         started = false
         if (::hud.isInitialized) hud.setBackgrounded(true)

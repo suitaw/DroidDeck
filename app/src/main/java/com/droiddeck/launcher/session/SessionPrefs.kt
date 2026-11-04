@@ -726,7 +726,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("mouseLeftHanded", on).apply()
     }
 
-    fun chrootMode(context: Context): Boolean = prefs(context).getBoolean("chrootMode", false)
+    fun chrootMode(context: Context): Boolean = prefs(context).getBoolean("chrootMode", true)
 
     fun setChrootMode(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("chrootMode", on).apply()
