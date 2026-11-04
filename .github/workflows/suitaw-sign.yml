@@ -1,0 +1,60 @@
+name: Sign suitaw build
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Build APK run whose droiddeck-apk artifact to sign
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  sign:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      PKG: com.suitaw.droiddeck
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download the apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN: ${{ inputs.run_id }}
+        run: gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n droiddeck-apk -D in
+      - name: Rename and sign
+        env:
+          RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          [ -n "$RELEASE_KEYSTORE_B64" ] || { echo "::error::no signing key secret"; exit 1; }
+          KS="$RUNNER_TEMP/release.p12"
+          ( umask 077; base64 -d <<<"$RELEASE_KEYSTORE_B64" > "$KS" )
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)
+          P=com.droiddeck.launcher
+          apks=(in/*.apk); [ ${#apks[@]} = 1 ]
+          python3 tools/release/axml_rename.py "${apks[0]}" renamed.apk \
+            "$P=$PKG" "$P.androidx-startup=$PKG.androidx-startup" "$P.logs=$PKG.logs" \
+            "$P.pairingguide=$PKG.pairingguide" "$P.pin=$PKG.pin" \
+            "$P.documents=$PKG.documents" "$P.home=$PKG.home" "$P.agent=$PKG.agent" \
+            "$P.vr_recovery=$PKG.vr_recovery" "$P.dualscreen=$PKG.dualscreen" "$P.typing=$PKG.typing" \
+            "$P.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION=$PKG.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+          "$BT/aapt" dump badging renamed.apk | grep -q "^package: name='$PKG'"
+          "$BT/zipalign" -p -f 4 renamed.apk aligned.apk
+          mkdir -p out
+          "$BT/apksigner" sign --ks "$KS" --ks-type PKCS12 --ks-pass env:RELEASE_STORE_PASSWORD \
+            --ks-key-alias droiddeck --key-pass env:RELEASE_STORE_PASSWORD \
+            --v4-signing-enabled false --out "out/DroidDeck-suitaw-${GITHUB_SHA::7}.apk" aligned.apk
+          rm -f out/*.idsig
+          "$BT/apksigner" verify --print-certs out/*.apk | grep -i "SHA-256"
+          ( cd out && sha256sum -- *.apk )
+      - name: Forget the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.p12"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: droiddeck-suitaw-signed
+          path: out/*
+          if-no-files-found: error
