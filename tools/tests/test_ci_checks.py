@@ -89,7 +89,7 @@ class CiChecksTest(unittest.TestCase):
                     ['bash', '-c', gate['steps'][0]['run']],
                     env=dict(os.environ, BUILD_RESULT=build, PYTHON_RESULT=python),
                     capture_output=True)
-                self.assertEqual(result.returncode == 0, build == python == 'success')
+                self.assertEqual(result.returncode == 0, build == 'success' and python in ('success', 'skipped'))
         for publisher in ('sign', 'packs'):
             self.assertIn('checks', jobs[publisher]['needs'])
 

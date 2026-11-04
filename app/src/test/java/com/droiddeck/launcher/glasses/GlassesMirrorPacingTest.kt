@@ -67,9 +67,17 @@ class GlassesMirrorPacingTest {
     }
 
     @Test fun pacingFollowsThePanelWhenTheSystemKeepsALowerRateThanRequested() {
+        activity.intent.putExtra(com.droiddeck.launcher.session.SessionService.EXTRA_MODE, com.droiddeck.launcher.session.SessionService.MODE_STEAM)
         Shadow.extract<ModeDisplay>(activity.display).current = mode(2, 90f)
         apply(GlassesState(), settings)
         expect(3, 90f, SessionPrefs.FPS_UNPACED)
+    }
+
+    @Test fun theDesktopKeepsItsRequestedRateWhileThePanelIdlesLower() {
+        activity.intent.putExtra(com.droiddeck.launcher.session.SessionService.EXTRA_MODE, com.droiddeck.launcher.session.SessionService.MODE_DESKTOP)
+        Shadow.extract<ModeDisplay>(activity.display).current = mode(2, 90f)
+        apply(GlassesState(), settings)
+        expect(3, 120f, SessionPrefs.FPS_UNPACED)
     }
 
     @Test fun aHigherRefreshSettingChoosesTheFasterModeAgain() {
