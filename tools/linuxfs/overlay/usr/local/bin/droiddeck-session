@@ -356,11 +356,7 @@ if [ -z "${BL_INSIDE:-}" ]; then
         echo "== desktop: the system bus did not come up"
       fi
     fi
-    cores=$(program_cores)
-    if [ -n "$cores" ]; then
-      echo "== desktop cores: $cores (the desktop and every program started from it)"
-      taskset -cp "$cores" $$ >/dev/null 2>&1 || echo "== desktop cores: not allowed right now, every core"
-    fi
+    # Not pinned to the fastest cores: on a 2+6 phone that left a browser two cores of eight.
     exec /usr/local/bin/droiddeck-desktop
   fi
   width=${BL_WIDTH:-1280}

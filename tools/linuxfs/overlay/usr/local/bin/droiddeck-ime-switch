@@ -33,6 +33,11 @@ if [ "${1:-}" = --once ]; then
   apply "$(wanted)"
   exit 0
 fi
+# Only asks KConfig once the wanted input method differs from the last one applied: this runs all session long.
+applied=
 while sleep 1; do
-  apply "$(wanted)" notify
+  want=$(wanted)
+  [ "$want" = "$applied" ] && continue
+  apply "$want" notify
+  [ "$want" = "$(kreadconfig6 --file kwinrc --group Wayland --key InputMethod 2>/dev/null)" ] && applied=$want
 done

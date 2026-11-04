@@ -147,11 +147,27 @@ object ChrootSession {
         line("  fi")
         line("  b \"\$O\" /usr/lib/cargo/bin/coreutils")
         line("fi")
+        // apt runs under proot, which turns hard links into .l2s symlinks that programs named by argv[0] cannot follow.
+        line("if [ \"\$R/var/lib/dpkg/status\" -nt \"\$F/chroot/l2s-stamp\" ]; then")
+        line("  chroot \"\$R\" /usr/bin/find /usr /etc /opt -xdev -type l -lname '*/.l2s.*' 2>/dev/null | while read -r l; do")
+        line("    real=\$(chroot \"\$R\" /usr/bin/readlink -f \"\$l\")")
+        line("    [ -f \"\$real\" ] || continue")
+        line("    ln \"\$real\" \"\$R\$l.dd\" 2>/dev/null && mv -f \"\$R\$l.dd\" \"\$R\$l\"")
+        line("  done")
+        line("  : > \"\$F/chroot/l2s-stamp\"")
+        line("fi")
+        // libblfastpath only speeds up proot, so a chroot's programs need not load it.
+        val preload = File(parsed.root, "etc/ld.so.preload")
+        if (preload.isFile) {
+            write(File(dir, "ld.so.preload"), preload.readLines().filterNot { it.contains("libblfastpath") }.joinToString("\n", postfix = "\n"))
+            line("b \"\$F/chroot/ld.so.preload\" /etc/ld.so.preload")
+        }
         line("export DD_CTX=${q(selfContext())} DD_CWD=${q(parsed.cwd)}")
         line("cd /")
         val groups = selfGroups()
         val priv = "--reuid=$uid --regid=$uid " + if (groups.isNotEmpty()) "--groups=$groups" else "--clear-groups"
-        val guest = parsed.guest.joinToString(" ") { q(it) }
+        // rseq stays off for proot's sake; a real kernel can have it.
+        val guest = parsed.guest.joinToString(" ") { q(it.replace("glibc.pthread.rseq=0:", "")) }
         val asApp = "chroot \"\$R\" /usr/bin/setpriv $priv /bin/sh ${q(dom.path)}"
         line("i=0; while [ \$i -lt 5 ]; do")
         line("  $asApp /bin/sh ${q(File(dir, "linkprobe.sh").path)} 2>/dev/null && break")

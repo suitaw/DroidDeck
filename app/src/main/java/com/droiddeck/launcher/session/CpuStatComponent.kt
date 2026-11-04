@@ -62,9 +62,12 @@ class CpuStatComponent(val file: File) : SessionPart() {
         for (i in cores) text.append("cpu$i ${busy[i]} 0 0 ${idle[i]} 0 0 0 0 0 0\n")
         text.append("intr 0\nctxt 0\nbtime $bootSeconds\nprocesses 1\nprocs_running 1\nprocs_blocked 0\n")
         try {
-            val tmp = File(file.parentFile, file.name + ".tmp")
-            tmp.writeText(text.toString())
-            if (!tmp.renameTo(file)) tmp.delete()
+            // In place: in a chroot this file is bind-mounted, and a rename would leave the mount on the old file.
+            java.io.RandomAccessFile(file, "rw").use {
+                val bytes = text.toString().toByteArray()
+                it.write(bytes)
+                it.setLength(bytes.size.toLong())
+            }
         } catch (e: Exception) {
         }
     }

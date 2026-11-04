@@ -172,6 +172,13 @@ echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
 ) &
 (nohup /usr/local/bin/droiddeck-safe-area >/tmp/droiddeck-safe-area.log 2>&1 &)
 kwriteconfig6 --file kwinrc --group Plugins --key shakecursorEnabled false
+kwriteconfig6 --file kwinrc --group Plugins --key blurEnabled true
+kwriteconfig6 --file kwinrc --group Plugins --key contrastEnabled true
+# Background services with nothing to do on a phone.
+mkdir -p "$HOME/.config/autostart"
+for entry in org.kde.kdeconnect.daemon org.kde.kunifiedpush-distributor kunifiedpush-distributor; do
+  [ -e "/etc/xdg/autostart/$entry.desktop" ] && printf '[Desktop Entry]\nHidden=true\n' > "$HOME/.config/autostart/$entry.desktop"
+done
 # KWin splits this variable on commas. Unset, that gives [""], which matches the nameless keyboard of its Wayland
 # backend, so every key skipped the input method and fcitx5 never saw one.
 export KWIN_DEVICE_SKIPS_INPUT_METHOD=droiddeck-none

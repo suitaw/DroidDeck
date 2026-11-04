@@ -7,6 +7,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import uuid
 
 import gi
@@ -39,9 +40,73 @@ UPOWER_INTROSPECTION = """
 <node>
   <interface name="org.freedesktop.UPower">
     <method name="Suspend"/>
+    <method name="EnumerateDevices"><arg type="ao" direction="out"/></method>
+    <method name="GetDisplayDevice"><arg type="o" direction="out"/></method>
+    <method name="GetCriticalAction"><arg type="s" direction="out"/></method>
+    <property name="DaemonVersion" type="s" access="read"/>
+    <property name="OnBattery" type="b" access="read"/>
+    <property name="LidIsClosed" type="b" access="read"/>
+    <property name="LidIsPresent" type="b" access="read"/>
+    <signal name="DeviceAdded"><arg type="o"/></signal>
+    <signal name="DeviceRemoved"><arg type="o"/></signal>
   </interface>
 </node>
 """
+UPOWER_DEVICE = UPOWER + ".Device"
+BATTERY_PATH = UPOWER_ROOT + "/devices/battery_BAT1"
+DISPLAY_PATH = UPOWER_ROOT + "/devices/DisplayDevice"
+BATTERY_DIR = Path("/sys/class/power_supply/BAT1")
+BATTERY_SIGNATURES = {
+    "NativePath": "s", "Vendor": "s", "Model": "s", "Serial": "s", "UpdateTime": "t", "Type": "u", "PowerSupply": "b",
+    "HasHistory": "b", "HasStatistics": "b", "Online": "b", "Energy": "d", "EnergyEmpty": "d", "EnergyFull": "d",
+    "EnergyFullDesign": "d", "EnergyRate": "d", "Voltage": "d", "TimeToEmpty": "x", "TimeToFull": "x", "Percentage": "d",
+    "Temperature": "d", "IsPresent": "b", "State": "u", "IsRechargeable": "b", "Capacity": "d", "Technology": "u",
+    "WarningLevel": "u", "BatteryLevel": "u", "IconName": "s",
+}
+DEVICE_INTROSPECTION = """
+<node>
+  <interface name="org.freedesktop.UPower.Device">
+    <method name="Refresh"/>
+%s
+  </interface>
+</node>
+""" % "\n".join('    <property name="%s" type="%s" access="read"/>' % item for item in BATTERY_SIGNATURES.items())
+
+
+def battery_value(name, default=0.0):
+    try:
+        return float((BATTERY_DIR / name).read_text().strip())
+    except (OSError, ValueError):
+        return default
+
+
+def battery_text(name, default=""):
+    try:
+        return (BATTERY_DIR / name).read_text().strip()
+    except OSError:
+        return default
+
+
+def battery_state():
+    return {"Charging": 1, "Discharging": 2, "Full": 4, "Not charging": 5}.get(battery_text("status"), 0)
+
+
+def battery_properties(display):
+    percent = battery_value("capacity")
+    state = battery_state()
+    level = "full" if percent >= 95 else "good" if percent >= 50 else "low" if percent >= 15 else "caution"
+    values = {
+        "NativePath": "" if display else "BAT1", "Vendor": battery_text("manufacturer"), "Model": battery_text("model_name"),
+        "Serial": "", "UpdateTime": int(time.time()), "Type": 2, "PowerSupply": True, "HasHistory": False,
+        "HasStatistics": False, "Online": False, "Energy": battery_value("energy_now") / 1e6, "EnergyEmpty": 0.0,
+        "EnergyFull": battery_value("energy_full") / 1e6, "EnergyFullDesign": battery_value("energy_full_design") / 1e6,
+        "EnergyRate": abs(battery_value("power_now")) / 1e6, "Voltage": battery_value("voltage_now") / 1e6,
+        "TimeToEmpty": int(battery_value("time_to_empty_now")), "TimeToFull": int(battery_value("time_to_full_now")),
+        "Percentage": percent, "Temperature": battery_value("temp") / 10, "IsPresent": True, "State": state,
+        "IsRechargeable": True, "Capacity": 100.0, "Technology": 1, "WarningLevel": 1, "BatteryLevel": 1,
+        "IconName": "battery-%s%s-symbolic" % (level, "-charging" if state in (1, 4) else ""),
+    }
+    return {name: GLib.Variant(BATTERY_SIGNATURES[name], value) for name, value in values.items()}
 
 
 class LoginManager:
@@ -65,7 +130,12 @@ class LoginManager:
         info = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION).interfaces[0]
         self.registration = bus.register_object(ROOT, info, self.method, self.property, None)
         upower_info = Gio.DBusNodeInfo.new_for_xml(UPOWER_INTROSPECTION).interfaces[0]
-        self.upower_registration = bus.register_object(UPOWER_ROOT, upower_info, self.method, None, None)
+        self.upower_registration = bus.register_object(UPOWER_ROOT, upower_info, self.method, self.upower_property, None)
+        device_info = Gio.DBusNodeInfo.new_for_xml(DEVICE_INTROSPECTION).interfaces[0]
+        self.device_registrations = [bus.register_object(path, device_info, self.device_method, self.device_property, None)
+                                     for path in (BATTERY_PATH, DISPLAY_PATH)]
+        self.battery_seen = None
+        GLib.timeout_add_seconds(30, self.publish_battery)
         self.monitor = Gio.File.new_for_path(str(self.directory)).monitor_directory(Gio.FileMonitorFlags.NONE, None)
         self.monitor.connect("changed", self.changed)
 
@@ -73,6 +143,32 @@ class LoginManager:
         if name == "PreparingForSleep":
             return GLib.Variant("b", self.pending is not None)
         return None
+
+    def upower_property(self, connection, sender, path, interface, name):
+        return {
+            "DaemonVersion": GLib.Variant("s", "1.90.0"),
+            "OnBattery": GLib.Variant("b", battery_state() == 2),
+            "LidIsClosed": GLib.Variant("b", False),
+            "LidIsPresent": GLib.Variant("b", False),
+        }.get(name)
+
+    def device_property(self, connection, sender, path, interface, name):
+        return battery_properties(path == DISPLAY_PATH).get(name)
+
+    def device_method(self, connection, sender, path, interface, name, args, reply):
+        reply.return_value(None)
+
+    def publish_battery(self):
+        seen = (battery_value("capacity"), battery_state())
+        if seen != self.battery_seen:
+            self.battery_seen = seen
+            properties = "org.freedesktop.DBus.Properties"
+            for path in (BATTERY_PATH, DISPLAY_PATH):
+                self.bus.emit_signal(None, path, properties, "PropertiesChanged", GLib.Variant(
+                    "(sa{sv}as)", (UPOWER_DEVICE, battery_properties(path == DISPLAY_PATH), [])))
+            self.bus.emit_signal(None, UPOWER_ROOT, properties, "PropertiesChanged", GLib.Variant(
+                "(sa{sv}as)", (UPOWER, {"OnBattery": GLib.Variant("b", seen[1] == 2)}, [])))
+        return True
 
     def notify(self, sleeping):
         self.bus.emit_signal(None, ROOT, INTERFACE, "PrepareForSleep", GLib.Variant("(b)", (sleeping,)))
@@ -85,6 +181,12 @@ class LoginManager:
     def method(self, connection, sender, path, interface, name, args, reply):
         if name == "CanSuspend":
             reply.return_value(GLib.Variant("(s)", ("yes",)))
+        elif name == "EnumerateDevices":
+            reply.return_value(GLib.Variant("(ao)", ([BATTERY_PATH],)))
+        elif name == "GetDisplayDevice":
+            reply.return_value(GLib.Variant("(o)", (DISPLAY_PATH,)))
+        elif name == "GetCriticalAction":
+            reply.return_value(GLib.Variant("(s)", ("Ignore",)))
         elif name in ("Suspend", "SuspendWithFlags"):
             print("== login1: %s.%s asked by %s" % (interface.rsplit(".", 1)[-1], name, sender), flush=True)
             if self.pending:
