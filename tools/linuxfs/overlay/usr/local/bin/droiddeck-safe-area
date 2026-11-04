@@ -1,0 +1,177 @@
+#!/usr/bin/python3
+"""Keeps windows and the panel clear of the screen's rounded corners and cutout while the wallpaper fills the screen.
+
+The app writes "left top right bottom" in physical pixels to /etc/droiddeck/safe-area. This holds one invisible,
+click-through layer surface per edge with an exclusive zone, which is what KWin leaves free when it places windows.
+"""
+import json
+import math
+import os
+import select
+import socket
+import struct
+import subprocess
+import time
+
+FLAG = "/etc/droiddeck/safe-area"
+OUTPUTS = os.path.expanduser("~/.config/kwinoutputconfig.json")
+TOP, BOTTOM, LEFT, RIGHT = 1, 2, 4, 8
+
+
+def read_insets():
+    try:
+        values = [int(v) for v in open(FLAG).read().split()]
+        return tuple(values) if len(values) == 4 else None
+    except (OSError, ValueError):
+        return None
+
+
+def read_scale():
+    try:
+        for section in json.load(open(OUTPUTS)):
+            if section.get("name") == "outputs":
+                for output in section["data"]:
+                    if "scale" in output:
+                        return float(output["scale"])
+    except (OSError, ValueError, KeyError):
+        pass
+    return 1.0
+
+
+class Client:
+    def __init__(self):
+        self.sock = socket.socket(socket.AF_UNIX)
+        self.sock.connect(os.path.join(os.environ["XDG_RUNTIME_DIR"], os.environ["WAYLAND_DISPLAY"]))
+        self.next_id = 2
+        self.buffer = b""
+        self.handlers = {}
+
+    def new_id(self):
+        self.next_id += 1
+        return self.next_id - 1
+
+    def send(self, obj, opcode, body=b"", fds=None):
+        data = struct.pack("II", obj, ((8 + len(body)) << 16) | opcode) + body
+        if fds:
+            socket.send_fds(self.sock, [data], fds)
+        else:
+            self.sock.sendall(data)
+
+    def pump(self, timeout):
+        ready, _, _ = select.select([self.sock], [], [], timeout)
+        if not ready:
+            return True
+        data = self.sock.recv(65536)
+        if not data:
+            return False
+        self.buffer += data
+        while len(self.buffer) >= 8:
+            obj, word = struct.unpack_from("II", self.buffer)
+            size = word >> 16
+            if len(self.buffer) < size:
+                break
+            handler = self.handlers.get(obj)
+            if handler:
+                handler(word & 0xffff, self.buffer[8:size])
+            self.buffer = self.buffer[size:]
+        return True
+
+
+def text(value):
+    raw = value.encode() + b"\0"
+    return struct.pack("I", len(raw)) + raw.ljust((len(raw) + 3) & ~3, b"\0")
+
+
+def run(insets):
+    client = Client()
+    registry = client.new_id()
+    client.send(1, 1, struct.pack("I", registry))
+    found = {}
+
+    def on_global(opcode, body):
+        if opcode == 0:
+            name, length = struct.unpack_from("II", body)
+            found[body[8:8 + length - 1].decode()] = name
+
+    client.handlers[registry] = on_global
+    done = client.new_id()
+    finished = []
+    client.handlers[done] = lambda *_: finished.append(1)
+    client.send(1, 0, struct.pack("I", done))
+    while not finished:
+        if not client.pump(5):
+            return
+
+    def bind(name, version):
+        new = client.new_id()
+        client.send(registry, 0, struct.pack("I", found[name]) + text(name) + struct.pack("II", version, new))
+        return new
+
+    compositor = bind("wl_compositor", 4)
+    shm = bind("wl_shm", 1)
+    layer_shell = bind("zwlr_layer_shell_v1", 1)
+    size = 4 * 4096 * 256
+    fd = os.memfd_create("droiddeck-safe-area")
+    os.ftruncate(fd, size)
+    pool = client.new_id()
+    client.send(shm, 0, struct.pack("Ii", pool, size), [fd])
+    empty = client.new_id()
+    client.send(compositor, 1, struct.pack("I", empty))
+
+    scale = read_scale()
+    left, top, right, bottom = [math.ceil(v / scale) for v in insets]
+    edges = [
+        (TOP | LEFT | RIGHT, 0, top, top),
+        (BOTTOM | LEFT | RIGHT, 0, bottom, bottom),
+        (LEFT | TOP | BOTTOM, left, 0, left),
+        (RIGHT | TOP | BOTTOM, right, 0, right),
+    ]
+    for anchor, width, height, zone in edges:
+        if zone <= 0:
+            continue
+        surface = client.new_id()
+        client.send(compositor, 0, struct.pack("I", surface))
+        client.send(surface, 5, struct.pack("I", empty))  # no input region: clicks pass through
+        layer = client.new_id()
+        client.send(layer_shell, 0, struct.pack("IIII", layer, surface, 0, 0) + text("droiddeck-safe-area"))
+        client.send(layer, 0, struct.pack("II", width, height))
+        client.send(layer, 1, struct.pack("I", anchor))
+        client.send(layer, 2, struct.pack("i", zone))
+
+        def on_layer(opcode, body, layer=layer, surface=surface):
+            if opcode == 0:
+                serial, w, h = struct.unpack_from("III", body)
+                client.send(layer, 6, struct.pack("I", serial))
+                buffer = client.new_id()
+                client.send(pool, 0, struct.pack("IiiiiI", buffer, 0, max(w, 1), max(h, 1), max(w, 1) * 4, 0))
+                client.send(surface, 1, struct.pack("Iii", buffer, 0, 0))
+                client.send(surface, 2, struct.pack("iiii", 0, 0, max(w, 1), max(h, 1)))
+                client.send(surface, 6)
+
+        client.handlers[layer] = on_layer
+        client.send(surface, 6)
+
+    place_panel(left, right)
+    while client.pump(2):
+        if read_insets() != insets or read_scale() != scale:
+            return
+
+
+def place_panel(left, right):
+    script = (
+        "panels().forEach(function(p){if(p.location!='bottom'&&p.location!='top')return;"
+        "var w=screenGeometry(p.screen).width-%d-%d;"
+        "p.alignment='left';p.offset=%d;p.minimumLength=w;p.maximumLength=w;p.length=w;});" % (left, right, left)
+    )
+    subprocess.run(["qdbus6", "org.kde.plasmashell", "/PlasmaShell", "org.kde.PlasmaShell.evaluateScript", script],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+
+
+while True:
+    current = read_insets()
+    if current and any(current):
+        try:
+            run(current)
+        except (OSError, KeyError, struct.error) as err:
+            print("droiddeck-safe-area:", err, flush=True)
+    time.sleep(3)

@@ -3697,6 +3697,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return true
     }
 
+    private var publishedSafeArea: String? = null
+
     /** Keeps the desktop's corners and edges clear of the screen's rounded corners and cutout. */
     private fun applyDesktopSafeArea() {
         if (!::surfaceView.isInitialized || loadingMode() != SessionService.MODE_DESKTOP) return
@@ -3712,16 +3714,17 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // A square corner stays on screen when it is inset by r * (1 - cos 45 degrees).
         val edge = kotlin.math.ceil(corner * 0.293f).toInt()
         val cutout = if (Build.VERSION.SDK_INT >= 28) insets.displayCutout else null
-        val params = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
-        params.setMargins(
-            maxOf(edge, cutout?.safeInsetLeft ?: 0), maxOf(edge, cutout?.safeInsetTop ?: 0),
-            maxOf(edge, cutout?.safeInsetRight ?: 0), maxOf(edge, cutout?.safeInsetBottom ?: 0),
-        )
-        val old = surfaceView.layoutParams as? FrameLayout.LayoutParams
-        if (old == null || old.leftMargin != params.leftMargin || old.topMargin != params.topMargin ||
-            old.rightMargin != params.rightMargin || old.bottomMargin != params.bottomMargin) {
-            Log.i(TAG, "desktop safe area ${params.leftMargin},${params.topMargin},${params.rightMargin},${params.bottomMargin} corner=$corner")
-            surfaceView.layoutParams = params
+        // The wallpaper fills the screen; droiddeck-safe-area keeps windows and the panel inside these insets.
+        val area = "${maxOf(edge, cutout?.safeInsetLeft ?: 0)} ${maxOf(edge, cutout?.safeInsetTop ?: 0)} " +
+            "${maxOf(edge, cutout?.safeInsetRight ?: 0)} ${maxOf(edge, cutout?.safeInsetBottom ?: 0)}"
+        if (area != publishedSafeArea) {
+            publishedSafeArea = area
+            Log.i(TAG, "desktop safe area $area corner=$corner")
+            runCatching {
+                val flag = File(LinuxRuntime.rootDir(this), "etc/droiddeck/safe-area")
+                flag.parentFile?.mkdirs()
+                flag.writeText(area)
+            }.onFailure { Log.w(TAG, "could not publish the safe area", it) }
         }
     }
 

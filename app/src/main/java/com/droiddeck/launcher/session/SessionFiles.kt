@@ -77,6 +77,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-chroot-shell" to "usr/local/bin/chroot-shell",
             "usr/local/bin/droiddeck-zh-setup" to "usr/local/bin/droiddeck-zh-setup",
             "usr/local/bin/droiddeck-ime-switch" to "usr/local/bin/droiddeck-ime-switch",
+            "usr/local/bin/droiddeck-safe-area" to "usr/local/bin/droiddeck-safe-area",
             "usr/local/bin/droiddeck-text" to "usr/local/bin/droiddeck-text",
             "usr/local/bin/droiddeck-snapd" to "usr/local/bin/droiddeck-snapd",
             "usr/local/bin/droiddeck-emulators" to "usr/local/bin/droiddeck-emulators",

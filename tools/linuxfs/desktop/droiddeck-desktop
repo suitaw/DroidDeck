@@ -170,6 +170,8 @@ echo "== droiddeck-desktop: Plasma on $WAYLAND_DISPLAY"
     xargs -0 -a "/proc/$manager/environ" env -i setsid plasmashell --no-respawn >/dev/null 2>&1 &
   done
 ) &
+(nohup /usr/local/bin/droiddeck-safe-area >/tmp/droiddeck-safe-area.log 2>&1 &)
+kwriteconfig6 --file kwinrc --group Plugins --key shakecursorEnabled false
 # KWin splits this variable on commas. Unset, that gives [""], which matches the nameless keyboard of its Wayland
 # backend, so every key skipped the input method and fcitx5 never saw one.
 export KWIN_DEVICE_SKIPS_INPUT_METHOD=droiddeck-none
