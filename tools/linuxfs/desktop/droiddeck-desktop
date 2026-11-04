@@ -72,8 +72,9 @@ if [ ! -e "$HOME/.config/fontconfig/fonts.conf" ]; then
 FONTS
 fi
 # KWin here is a client of the app's compositor and has no input devices to list, so these pages can only fail.
-kwriteconfig6 --file kdeglobals --group "KDE Control Module Restrictions" --key kcm_mouse false
-kwriteconfig6 --file kdeglobals --group "KDE Control Module Restrictions" --key kcm_touchpad false
+# That group is marked immutable in /etc/xdg/kdeglobals, so kwriteconfig6 cannot add to it from the user's file.
+grep -q kcm_touchpad /etc/xdg/kdeglobals 2>/dev/null ||
+  sed -i '/^\[KDE Control Module Restrictions\]/a kcm_mouse.desktop=false\nkcm_touchpad.desktop=false' /etc/xdg/kdeglobals
 if [ ! -e "$HOME/.config/fcitx5/config" ]; then
   mkdir -p "$HOME/.config/fcitx5"
   printf '[Hotkey/TriggerKeys]\n0=Control+space\n1=Shift+space\n\n[Hotkey/AltTriggerKeys]\n0=Shift_L\n\n[Behavior]\nActiveByDefault=True\n' > "$HOME/.config/fcitx5/config"
