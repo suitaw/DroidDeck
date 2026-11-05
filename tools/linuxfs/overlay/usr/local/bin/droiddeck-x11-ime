@@ -1,0 +1,229 @@
+#!/usr/bin/env python3
+"""Android keyboard for X11 apps (QQ, LibreOffice), which never reach KWin's Wayland input method.
+
+Answers on D-Bus as fcitx5, so an app started with GTK_IM_MODULE=fcitx or QT_IM_MODULE=fcitx reports its
+text fields here. A focused field raises the Android keyboard through the same ime.json droiddeck-ime
+writes, and text from the keyboard goes back as CommitString. droiddeck-ime only takes commit files while
+a Wayland field is focused, so the two never compete. With a hardware keyboard the real fcitx5 runs and
+this steps aside.
+"""
+import json
+import os
+import sys
+import time
+
+import dbus
+import dbus.mainloop.glib
+import dbus.service
+from gi.repository import GLib
+
+NAMES = ("org.fcitx.Fcitx5", "org.freedesktop.portal.Fcitx")
+METHOD_IFACE = "org.fcitx.Fcitx.InputMethod1"
+CONTEXT_IFACE = "org.fcitx.Fcitx.InputContext1"
+FLAG = "/etc/droiddeck/hard-keyboard"
+SETTLE_MS = 150
+POLL_MS = 30
+
+
+def log(message):
+    print(f"droiddeck-x11-ime: {message}", file=sys.stderr, flush=True)
+
+
+def write_focus(directory, focused):
+    os.makedirs(directory, exist_ok=True)
+    target = os.path.join(directory, "ime.json")
+    temp = target + ".x11.tmp"
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as handle:
+        json.dump({"textField": focused, "hint": 0, "purpose": 0, "seq": time.time_ns()}, handle)
+    os.replace(temp, target)
+
+
+def take_commits(directory):
+    try:
+        names = sorted((n for n in os.listdir(directory) if n.startswith("commit-") and n[7:].isdigit()),
+                       key=lambda n: int(n[7:]))
+    except OSError:
+        return []
+    texts = []
+    for name in names:
+        path = os.path.join(directory, name)
+        try:
+            with open(path, encoding="utf-8") as handle:
+                texts.append(handle.read())
+            os.unlink(path)
+        except OSError:
+            pass
+    return texts
+
+
+class Context(dbus.service.Object):
+    def __init__(self, bridge, path, owner):
+        super().__init__(bridge.bus, path)
+        self.bridge = bridge
+        self.owner = owner
+        # An app that dies sends no FocusOut, and the keyboard would stay up.
+        self.watch = bridge.bus.watch_name_owner(owner, self.owner_changed)
+
+    def owner_changed(self, name):
+        if not name:
+            self.bridge.blur(self)
+            self.watch.cancel()
+            self.remove_from_connection()
+
+    @dbus.service.method(CONTEXT_IFACE)
+    def FocusIn(self):
+        self.bridge.focus(self)
+
+    @dbus.service.method(CONTEXT_IFACE)
+    def FocusOut(self):
+        self.bridge.blur(self)
+
+    @dbus.service.method(CONTEXT_IFACE)
+    def DestroyIC(self):
+        self.bridge.blur(self)
+        self.watch.cancel()
+        self.remove_from_connection()
+
+    @dbus.service.method(CONTEXT_IFACE)
+    def Reset(self):
+        pass
+
+    @dbus.service.method(CONTEXT_IFACE, in_signature="iiii")
+    def SetCursorRect(self, x, y, w, h):
+        pass
+
+    @dbus.service.method(CONTEXT_IFACE, in_signature="iiiid")
+    def SetCursorRectV2(self, x, y, w, h, scale):
+        pass
+
+    @dbus.service.method(CONTEXT_IFACE, in_signature="t")
+    def SetCapability(self, capability):
+        pass
+
+    @dbus.service.method(CONTEXT_IFACE, in_signature="t")
+    def SetSupportedCapability(self, capability):
+        pass
+
+    @dbus.service.method(CONTEXT_IFACE, in_signature="suu")
+    def SetSurroundingText(self, text, cursor, anchor):
+        pass
+
+    @dbus.service.method(CONTEXT_IFACE, in_signature="uu")
+    def SetSurroundingTextPosition(self, cursor, anchor):
+        pass
+
+    # Keys pass straight through: Backspace and Enter from the Android keyboard arrive as ordinary key events.
+    @dbus.service.method(CONTEXT_IFACE, in_signature="uuubu", out_signature="b")
+    def ProcessKeyEvent(self, keyval, keycode, state, is_release, time_ms):
+        return False
+
+    @dbus.service.signal(CONTEXT_IFACE, signature="s")
+    def CommitString(self, text):
+        pass
+
+
+class Bridge(dbus.service.Object):
+    def __init__(self, bus, directory):
+        self.bus = bus
+        self.directory = directory
+        self.count = 0
+        self.current = None
+        self.settle = None
+        self.held = []
+        self.flag = None
+        super().__init__(bus, "/org/freedesktop/portal/inputmethod")
+        self.alias = dbus.service.Object(bus, "/inputmethod")
+        GLib.timeout_add(POLL_MS, self.deliver)
+        GLib.timeout_add_seconds(1, self.follow_keyboard)
+        self.follow_keyboard()
+
+    def follow_keyboard(self):
+        try:
+            with open(FLAG) as handle:
+                hard = handle.read().strip() == "1"
+        except OSError:
+            hard = False
+        if hard != self.flag:
+            self.flag = hard
+            if hard:
+                self.held = []
+                for name in NAMES:
+                    self.bus.release_name(name)
+            else:
+                self.held = [dbus.service.BusName(name, self.bus, replace_existing=True, allow_replacement=True,
+                                                  do_not_queue=True) for name in NAMES]
+            log(f"hardware keyboard {'present, stepping aside' if hard else 'absent, serving'}")
+        return True
+
+    @dbus.service.method(METHOD_IFACE, in_signature="a(ss)", out_signature="oay", sender_keyword="sender")
+    def CreateInputContext(self, args, sender=None):
+        self.count += 1
+        path = f"/org/freedesktop/portal/inputcontext/{self.count}"
+        Context(self, path, sender)
+        log(f"input context {self.count}")
+        return dbus.ObjectPath(path), dbus.ByteArray(os.urandom(16))
+
+    def focus(self, context):
+        self.current = context
+        if self.settle is not None:
+            GLib.source_remove(self.settle)
+            self.settle = None
+        write_focus(self.directory, True)
+        log("text field focused")
+
+    def blur(self, context):
+        if context is not self.current:
+            return
+        self.current = None
+        if self.settle is None:
+            self.settle = GLib.timeout_add(SETTLE_MS, self.left)
+
+    def left(self):
+        self.settle = None
+        if self.current is None:
+            write_focus(self.directory, False)
+            log("text field left")
+        return False
+
+    def deliver(self):
+        if self.current is not None:
+            for text in take_commits(self.directory):
+                self.current.CommitString(text)
+        return True
+
+
+def wait_for_session_bus():
+    """Started before dbus-run-session, so the session bus is read from KWin once it is up."""
+    while not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        for pid in filter(str.isdigit, os.listdir("/proc")):
+            try:
+                with open(f"/proc/{pid}/comm") as handle:
+                    if handle.read().strip() != "kwin_wayland":
+                        continue
+                with open(f"/proc/{pid}/environ", "rb") as handle:
+                    entries = handle.read().split(b"\0")
+            except OSError:
+                continue
+            for entry in entries:
+                if entry.startswith(b"DBUS_SESSION_BUS_ADDRESS="):
+                    os.environ["DBUS_SESSION_BUS_ADDRESS"] = entry.split(b"=", 1)[1].decode()
+        time.sleep(1)
+
+
+def main():
+    launch = os.environ.get("BL_LAUNCH_DIR", "")
+    directory = os.environ.get("BL_IME_DIR") or (os.path.join(launch, "agent") if launch else "")
+    if not directory:
+        log("no input directory")
+        return 1
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    wait_for_session_bus()
+    write_focus(directory, False)
+    Bridge(dbus.SessionBus(), directory)
+    GLib.MainLoop().run()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

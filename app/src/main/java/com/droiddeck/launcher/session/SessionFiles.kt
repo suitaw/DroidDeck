@@ -79,6 +79,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-ime-switch" to "usr/local/bin/droiddeck-ime-switch",
             "usr/local/bin/droiddeck-safe-area" to "usr/local/bin/droiddeck-safe-area",
             "usr/local/bin/droiddeck-desktop-links" to "usr/local/bin/droiddeck-desktop-links",
+            "usr/local/bin/droiddeck-x11-ime" to "usr/local/bin/droiddeck-x11-ime",
             "usr/local/bin/droiddeck-text" to "usr/local/bin/droiddeck-text",
             "usr/local/bin/droiddeck-snapd" to "usr/local/bin/droiddeck-snapd",
             "usr/local/bin/droiddeck-emulators" to "usr/local/bin/droiddeck-emulators",

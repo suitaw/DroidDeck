@@ -181,6 +181,7 @@ mkdir -p "$HOME/.config/autostart"
 ) &
 (nohup /usr/local/bin/droiddeck-safe-area >/tmp/droiddeck-safe-area.log 2>&1 &)
 (nohup /usr/local/bin/droiddeck-desktop-links >/tmp/droiddeck-desktop-links.log 2>&1 &)
+(env -u DBUS_SESSION_BUS_ADDRESS nohup /usr/local/bin/droiddeck-x11-ime >/tmp/droiddeck-x11-ime.log 2>&1 &)
 kwriteconfig6 --file kwinrc --group Plugins --key shakecursorEnabled false
 kwriteconfig6 --file kwinrc --group Plugins --key blurEnabled true
 kwriteconfig6 --file kwinrc --group Plugins --key contrastEnabled true
