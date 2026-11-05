@@ -172,6 +172,13 @@ object ChrootSession {
         // rseq stays off for proot's sake; a real kernel can have it.
         val guest = parsed.guest.joinToString(" ") { q(it.replace("glibc.pthread.rseq=0:", "")) }
         val asApp = "chroot \"\$R\" /usr/bin/setpriv $priv /bin/sh ${q(dom.path)}"
+        // Force-stopping the app leaves everything in the chroot running, since none of it is in the app's process group.
+        val appPid = android.os.Process.myPid()
+        line("[ -f \"\$F/chroot/watch.pid\" ] && kill \$(cat \"\$F/chroot/watch.pid\") 2>/dev/null")
+        line("(while [ \"\$(tr -d '\\0' < /proc/$appPid/cmdline 2>/dev/null | cut -d: -f1)\" = ${q(context.packageName)} ]; do sleep 3; done; " +
+            "k() { for p in /proc/[0-9]*; do [ \"\$(readlink \$p/root 2>/dev/null)\" = \"\$R\" ] && echo \${p#/proc/}; done; }; " +
+            "kill -TERM \$(k) 2>/dev/null; sleep 3; kill -KILL \$(k) 2>/dev/null) </dev/null >/dev/null 2>&1 &")
+        line("echo \$! > \"\$F/chroot/watch.pid\"")
         line("i=0; while [ \$i -lt 5 ]; do")
         line("  $asApp /bin/sh ${q(File(dir, "linkprobe.sh").path)} 2>/dev/null && break")
         line("  /data/adb/ksud sepolicy apply \"\$F/chroot/sepolicy.rule\" >/dev/null 2>&1; sleep 1; i=\$((i+1))")
