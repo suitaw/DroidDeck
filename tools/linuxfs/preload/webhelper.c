@@ -29,6 +29,8 @@ static char *join_features(const char *have, const char *add) {
 static char *const *chromium_argv(const char *path, char *const argv[]) {
   const char *slash = path ? strrchr(path, '/') : NULL;
   if (!slash || !argv || !argv[0]) return argv;
+  // An Electron binary run as plain Node rejects Chromium's flags and exits 9; VS Code does this to read the shell's environment.
+  if (getenv("ELECTRON_RUN_AS_NODE")) return argv;
   int argc = 0;
   for (; argv[argc]; argc++)
     if (argc && (!strncmp(argv[argc], "--type=", 7) || !strcmp(argv[argc], "--no-sandbox"))) return argv;
