@@ -675,6 +675,15 @@ class SessionService : Service() {
             ChrootSession.cleanup(this)
             ChrootSession.command(this, command)
         } else null
+        if (chrootCommand == null) {
+            // suitaw: no proot fallback. Without a working chroot the session does not start.
+            Log.w(TAG, "chroot unavailable; not starting the session")
+            mainHandler.post { Toast.makeText(this, R.string.session_chroot_required, Toast.LENGTH_LONG).show() }
+            SessionEvents.record("guest.start_failed", mapOf("reason" to "chroot_unavailable"))
+            failSession(gen, "CHROOT_UNAVAILABLE", "Root is not available, so the chroot session cannot start", null)
+            stopSession(-1, gen)
+            return
+        }
         val line = (chrootCommand ?: command).joinToString(" ") {
             it.replace("\\", "\\\\").replace(" ", "\\ ")
         }

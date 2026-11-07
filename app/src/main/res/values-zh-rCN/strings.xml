@@ -3705,4 +3705,5 @@
     <string name="chroot_root_message">桌面里有程序请求 chroot 的 root 命令行，它能改动整部手机。只有你刚刚自己请求时才允许。</string>
     <string name="chroot_root_allow">允许一次</string>
     <string name="chroot_root_deny">拒绝</string>
+    <string name="session_chroot_required">没有 root，桌面无法启动。请先在 KernelSU 重新获取 root（并给本应用授权），再打开桌面。</string>
 </resources>

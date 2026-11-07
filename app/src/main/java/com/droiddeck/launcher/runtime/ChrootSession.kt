@@ -2,7 +2,6 @@ package com.droiddeck.launcher.runtime
 
 import android.content.Context
 import android.util.Log
-import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -31,10 +30,10 @@ object ChrootSession {
     } catch (e: Exception) { false }
 
     fun enabled(context: Context): Boolean {
-        if (!SessionPrefs.chrootMode(context)) return false
+        // suitaw: chroot is the only mode; the old preference is ignored and there is no proot fallback.
         if (rootOk) return true
         rootOk = rootWorks()
-        if (!rootOk) Log.w(TAG, "chroot mode is on but su is not usable; staying on proot")
+        if (!rootOk) Log.w(TAG, "su is not usable; the session cannot start without root")
         return rootOk
     }
 

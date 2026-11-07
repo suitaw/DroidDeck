@@ -3767,4 +3767,5 @@
     <string name="chroot_root_message">Something in the desktop asked for a root shell in the chroot. It can change this whole phone. Allow it only if you just asked for it yourself.</string>
     <string name="chroot_root_allow">Allow once</string>
     <string name="chroot_root_deny">Deny</string>
+    <string name="session_chroot_required">No root, so the desktop cannot start. Get root in KernelSU (and allow this app), then open the desktop again.</string>
 </resources>

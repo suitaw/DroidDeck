@@ -204,11 +204,6 @@ fun PerformancePage(
                 stringResource(R.string.perf_cursor_composite_hint),
                 cursorComposite, onChange = onCursorComposite,
             )
-            ToggleRow(
-                host, "chroot", stringResource(R.string.perf_chroot),
-                stringResource(R.string.perf_chroot_hint),
-                chrootMode, onChange = onChrootMode,
-            )
         }
         SettingsGroup(stringResource(R.string.perf_screen)) {
             ChoiceRow(
