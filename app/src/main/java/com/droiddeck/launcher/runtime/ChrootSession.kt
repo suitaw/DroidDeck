@@ -175,7 +175,8 @@ object ChrootSession {
         // Force-stopping the app leaves everything in the chroot running, since none of it is in the app's process group.
         val appPid = android.os.Process.myPid()
         line("[ -f \"\$F/chroot/watch.pid\" ] && kill \$(cat \"\$F/chroot/watch.pid\") 2>/dev/null")
-        line("(while [ \"\$(tr -d '\\0' < /proc/$appPid/cmdline 2>/dev/null | cut -d: -f1)\" = ${q(context.packageName)} ]; do sleep 3; done; " +
+        // toybox tr spins forever if the app exits between the open and the read (ESRCH), so cap it.
+        line("(while [ \"\$(timeout 5 tr -d '\\0' < /proc/$appPid/cmdline 2>/dev/null | cut -d: -f1)\" = ${q(context.packageName)} ]; do sleep 3; done; " +
             "k() { for p in /proc/[0-9]*; do [ \"\$(readlink \$p/root 2>/dev/null)\" = \"\$R\" ] && echo \${p#/proc/}; done; }; " +
             "kill -TERM \$(k) 2>/dev/null; sleep 3; kill -KILL \$(k) 2>/dev/null) </dev/null >/dev/null 2>&1 &")
         line("echo \$! > \"\$F/chroot/watch.pid\"")
